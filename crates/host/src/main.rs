@@ -54,8 +54,53 @@ async fn main() {
             }
         };
 
-    if let Err(e) = host::run(cfg, storage, store, catalog).await {
+    // Enrollment slice (spec 004): the REAL engine (no in-memory staging —
+    // the 002 lesson: the gate never inspects main.rs, so the real wiring
+    // is the production truth).
+    let enrollment_repo: Arc<dyn enrollment::repo::EnrollmentRepo> =
+        match enrollment::tiberius::TiberiusEnrollmentRepo::connect(&cfg.database_url).await {
+            Ok(r) => {
+                if let Err(e) = r.verify().await {
+                    eprintln!("startup failed: enrollment repo verify: {e}");
+                    std::process::exit(1);
+                }
+                Arc::new(r)
+            }
+            Err(e) => {
+                eprintln!("startup failed: enrollment repo: {e}");
+                std::process::exit(1);
+            }
+        };
+
+    // CourseSource port (spec 004, PQ-2): Phase 4 wires the catalog→port
+    // adapter against the 003 provider shape (b4f3008). Until then the
+    // honest stub: outage (503) — never a fake 404/200 (N1 discipline).
+    let course_source: Arc<dyn enrollment::repo::CourseSource> = Arc::new(UnwiredCourseSource);
+
+    if let Err(e) = host::run(cfg, storage, store, catalog, enrollment_repo, course_source).await {
         eprintln!("{e}");
         std::process::exit(1);
+    }
+}
+
+/// Phase 4 placeholder: the catalog→CourseSource adapter is not wired yet in
+/// this slice — every call is a storage-outage (503), never a fake absence
+/// (plan N1: an outage must never be conflated with absence).
+struct UnwiredCourseSource;
+
+#[async_trait::async_trait]
+impl enrollment::repo::CourseSource for UnwiredCourseSource {
+    async fn course_title(
+        &self,
+        _course_id: &str,
+    ) -> Result<Option<String>, enrollment::repo::EnrollmentError> {
+        Err(enrollment::repo::EnrollmentError::Unavailable)
+    }
+    async fn course_exists_in_org(
+        &self,
+        _course_id: &str,
+        _org_id: &str,
+    ) -> Result<bool, enrollment::repo::EnrollmentError> {
+        Err(enrollment::repo::EnrollmentError::Unavailable)
     }
 }

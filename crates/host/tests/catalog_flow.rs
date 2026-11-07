@@ -5,6 +5,7 @@
 
 use catalog::repo::InMemoryCourseRepo;
 use contracts::User;
+use enrollment::memory::{InMemoryCourseSource, InMemoryEnrollmentRepo};
 use rand::SeedableRng;
 use shared::session::MemorySessionStore;
 use shared::storage::{MemoryStorage, Storage as _};
@@ -85,7 +86,16 @@ async fn boot_with_session(port: u16, repo: Arc<InMemoryCourseRepo>, user_id: &s
             .await
             .expect("establish");
     tokio::spawn(async move {
-        host::run_with_stop(AppConfig::valid(port), storage, store, repo, None).await
+        host::run_with_stop(
+            AppConfig::valid(port),
+            storage,
+            store,
+            repo,
+            Arc::new(InMemoryEnrollmentRepo::new()),
+            Arc::new(InMemoryCourseSource::new()),
+            None,
+        )
+        .await
     });
     assert!(wait_health_ok(port).await, "serving");
     token

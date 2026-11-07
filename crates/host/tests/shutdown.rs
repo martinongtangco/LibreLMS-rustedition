@@ -26,6 +26,8 @@ async fn stop_signal_drains_and_exits_within_10s() {
     let port = free_port().await;
     let storage: Arc<dyn shared::storage::Storage> = Arc::new(MemoryStorage::new());
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
+    let enrollment_repo = Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new());
+    let course_source = Arc::new(enrollment::memory::InMemoryCourseSource::new());
     let stop = Arc::new(tokio::sync::Notify::new());
     let stop2 = stop.clone();
     let handle = tokio::spawn(async move {
@@ -34,6 +36,8 @@ async fn stop_signal_drains_and_exits_within_10s() {
             storage,
             store,
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            enrollment_repo,
+            course_source,
             Some(stop2),
         )
         .await
