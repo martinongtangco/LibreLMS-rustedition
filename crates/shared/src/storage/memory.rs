@@ -143,11 +143,17 @@ impl Storage for MemoryStorage {
             .cloned())
     }
 
-    async fn touch_session(&self, token_hash: &str, now: i64) -> Result<bool, StorageError> {
+    async fn touch_session(
+        &self,
+        token_hash: &str,
+        now: i64,
+        new_expiry: i64,
+    ) -> Result<bool, StorageError> {
         let mut g = self.inner.lock().expect("poisoned");
         match g.sessions.get_mut(token_hash) {
             Some(s) => {
                 s.last_activity = now;
+                s.expires_at = new_expiry;
                 Ok(true)
             }
             None => Ok(false),
@@ -220,10 +226,10 @@ mod tests {
             expires_at: 200,
         };
         s.create_session(&row).await.unwrap();
-        assert!(s.touch_session("h1", 150).await.unwrap());
+        assert!(s.touch_session("h1", 150, 160).await.unwrap());
         let got = s.get_session("h1").await.unwrap().expect("exists");
         assert_eq!(got.last_activity, 150);
-        assert!(!s.touch_session("missing", 150).await.unwrap());
+        assert!(!s.touch_session("missing", 150, 160).await.unwrap());
         s.delete_session("h1").await.unwrap();
         assert!(s.get_session("h1").await.unwrap().is_none());
     }

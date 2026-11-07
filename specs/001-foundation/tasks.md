@@ -77,22 +77,22 @@ observation") and are written first — red, then green.
 
 ### Tests (write first, must FAIL)
 
-- [ ] T024 [P] [US3] Session tests in `crates/shared/tests/auth.rs` (MemoryStorage): establish → verify across requests; scope mismatch → 403 (story 3.2); sliding extension on activity; expiry after TTL with no activity; unknown token → 401 never 500
-- [ ] T025 [P] [US3] Ephemeral bag tests in `crates/shared/tests/session_bag.rs`: set/get with TTL; flush store → only bag lost, session row intact (story 3.4)
+- [x] T024 [P] [US3] Session tests in `crates/shared/tests/auth.rs` (MemoryStorage): establish → verify across requests; scope mismatch → 403 (story 3.2); sliding extension on activity; expiry after TTL with no activity; unknown token → 401 never 500
+- [x] T025 [P] [US3] Ephemeral bag tests in `crates/shared/tests/session_bag.rs`: set/get with TTL; flush store → only bag lost, session row intact (story 3.4)
 
 ### Implementation
 
-- [ ] T026 [US3] Implement `shared/src/auth/mod.rs`: token generation (32-byte, base64url), `token_hash` session row, cookie attributes per contracts/api.md (R4), sliding-expiry logic
-- [ ] T027 [US3] Implement `AuthenticatedSession` extractor + `ScopeGuard` (401/403, FR-007 — R5) in `crates/shared/src/auth/`
-- [ ] T028 [US3] Implement bag API (set/get/refresh-TTL; `SessionStoreUnavailable` → 503 path, story 1.4) in `crates/shared/src/session/`
+- [x] T026 [US3] Implement `shared/src/auth/mod.rs`: token generation (32-byte, base64url), `token_hash` session row, cookie attributes per contracts/api.md (R4), sliding-expiry logic
+- [x] T027 [US3] Implement `AuthenticatedSession` extractor + `ScopeGuard` (401/403, FR-007 — R5) in `crates/shared/src/auth/`
+- [x] T028 [US3] Implement bag API (set/get/refresh-TTL; `SessionStoreUnavailable` → 503 path, story 1.4) in `crates/shared/src/session/`
 
 **Checkpoint**: all three stories independently functional; full deterministic gate green
 
 ## Phase 6: Polish & Cross-Cutting
 
-- [ ] T029 [P] Validate quickstart.md §1–§5 end-to-end on the Linux machine (deterministic path)
-- [ ] T030 Full gate sweep on clean checkout: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo build --workspace`, `cargo test --workspace`, `check-boundaries.sh` — all green (SC-005, local half; peer runs the Windows half)
-- [ ] T031 Update `docs/work-split.md` status (Phase 2 done) + close spec 001 with the completion evidence in the PR body (Principle XIII proof)
+- [x] T029 [P] Validate quickstart.md §1–§5 end-to-end on the Linux machine (deterministic path)
+- [x] T030 Full gate sweep on clean checkout: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo build --workspace`, `cargo test --workspace`, `check-boundaries.sh` — all green (SC-005, local half; peer runs the Windows half)
+- [x] T031 Update `docs/work-split.md` status (Phase 2 done) + close spec 001 with the completion evidence in the PR body (Principle XIII proof)
 
 ## Dependencies & Execution Order
 

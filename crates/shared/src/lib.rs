@@ -7,6 +7,7 @@
 //! - `migrate`: the ordered, checksummed migration manifest
 //! - `mail`: mail-sending interface + development outbox (spec FR-010)
 
+pub mod auth;
 pub mod config;
 pub mod mail;
 pub mod migrate;

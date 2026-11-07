@@ -5,6 +5,21 @@
 
 use serde::{Deserialize, Serialize};
 
+/// An authenticated identity (auth flow surface — shared by every module).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Identity {
+    pub user_id: String,
+    pub organization_id: String,
+    pub role: Role,
+}
+
+/// Unified error envelope (contracts/api.md: every non-2xx JSON body).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ErrorEnvelope {
+    pub error: String,
+    pub message: String,
+}
+
 /// A person who signs in (data-model.md).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {

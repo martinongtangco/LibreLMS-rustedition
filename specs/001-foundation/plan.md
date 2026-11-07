@@ -123,3 +123,6 @@ crates as stubs for Phases 3–4.
 ## Complexity Tracking
 
 Not required — Constitution Check passed with no violations.
+
+## Amendments
+- 2026-07-24: `rand 0.9` added (US3 token generation — CSPRNG-quality session tokens; std has no RNG). Listed per Principle XVIII.

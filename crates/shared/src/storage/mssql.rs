@@ -292,15 +292,23 @@ impl Storage for TiberiusStorage {
         }))
     }
 
-    async fn touch_session(&self, token_hash: &str, now: i64) -> Result<bool, StorageError> {
+    async fn touch_session(
+        &self,
+        token_hash: &str,
+        now: i64,
+        new_expiry: i64,
+    ) -> Result<bool, StorageError> {
         let mut g = self.guard().await?;
         let client = g.as_mut().unwrap();
         let activity = unix_ts_to_sql(now);
+        let expiry = unix_ts_to_sql(new_expiry);
         let affected = client
             .execute(
-                "UPDATE dbo.sessions SET last_activity = CAST(@P1 AS DATETIME2)
+                "UPDATE dbo.sessions
+                 SET last_activity = CAST(@P1 AS DATETIME2),
+                     expires_at = CAST(@P3 AS DATETIME2)
                  WHERE token_hash = @P2",
-                &[&activity, &token_hash],
+                &[&activity, &token_hash, &expiry],
             )
             .await
             .map_err(|e| StorageError::Unavailable(format!("mssql touch_session: {e}")))?;

@@ -78,7 +78,12 @@ pub trait Storage: Send + Sync {
     async fn create_session(&self, s: &NewSession) -> Result<(), StorageError>;
     async fn get_session(&self, token_hash: &str) -> Result<Option<SessionRow>, StorageError>;
     /// Sliding-expiry touch (research R4). Returns false if the session is gone.
-    async fn touch_session(&self, token_hash: &str, now: i64) -> Result<bool, StorageError>;
+    async fn touch_session(
+        &self,
+        token_hash: &str,
+        now: i64,
+        new_expiry: i64,
+    ) -> Result<bool, StorageError>;
     async fn delete_session(&self, token_hash: &str) -> Result<(), StorageError>;
 
     async fn get_user(&self, id: &str) -> Result<Option<contracts::User>, StorageError>;

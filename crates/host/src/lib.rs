@@ -5,10 +5,12 @@
 use std::sync::Arc;
 
 use askama::Template;
-use axum::extract::State;
-use axum::response::IntoResponse;
+use axum::extract::{FromRequestParts, State};
+use axum::http::request::Parts;
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
-use axum::Router;
+use axum::{Json, Router};
+use shared::auth::{self, AuthContext, AuthError};
 use shared::session::SessionStore;
 use shared::storage::{SchemaStatus, Storage};
 use shared::Config;
@@ -65,9 +67,99 @@ impl axum::response::IntoResponse for HomePage {
 fn app(state: AppState) -> Router {
     Router::new()
         .route("/healthz", get(healthz))
+        .route("/me", get(me))
         .route("/", get(home))
         .with_state(state)
         .fallback(not_found)
+}
+
+/// The authenticated, scope-checked actor (US3). Rejected = an error
+/// response already (401/403/503 envelope).
+#[derive(Debug, Clone)]
+pub struct Authed(pub AuthContext);
+
+impl FromRequestParts<AppState> for Authed {
+    type Rejection = Response;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let org = parts
+            .headers
+            .get("X-Organization")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("");
+        let token = parts
+            .headers
+            .get(axum::http::header::COOKIE)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| {
+                v.split(';').find_map(|kv| {
+                    let (k, val) = kv.trim().split_once('=')?;
+                    (k == "session").then_some(val)
+                })
+            });
+        let Some(token) = token else {
+            return Err(envelope(
+                axum::http::StatusCode::UNAUTHORIZED,
+                "unauthenticated",
+                "missing or invalid session cookie",
+            ));
+        };
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() as i64)
+            .unwrap_or(0);
+        match auth::verify(
+            &*state.storage,
+            token,
+            org,
+            now,
+            state.cfg.session_ttl_secs as i64,
+            state.cfg.session_max_ttl_secs as i64,
+        )
+        .await
+        {
+            Ok(ctx) => Ok(Authed(ctx)),
+            Err(AuthError::Unauthenticated) => Err(envelope(
+                axum::http::StatusCode::UNAUTHORIZED,
+                "unauthenticated",
+                "unknown, expired, or out-of-scope session",
+            )),
+            Err(AuthError::Scope) => Err(envelope(
+                axum::http::StatusCode::FORBIDDEN,
+                "scope",
+                "organization scope mismatch",
+            )),
+            Err(AuthError::Unavailable) => Err(envelope(
+                axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                "unavailable",
+                "session backend temporarily unavailable",
+            )),
+        }
+    }
+}
+
+/// /me — the authenticated identity (contracts/api.md).
+async fn me(Authed(ctx): Authed) -> Json<contracts::Identity> {
+    Json(contracts::Identity {
+        user_id: ctx.user.id.clone(),
+        organization_id: ctx.organization_id.clone(),
+        role: ctx.role,
+    })
+}
+
+/// Error envelope (contracts/api.md) — no backend internals, no secrets.
+fn envelope(status: axum::http::StatusCode, code: &'static str, message: &'static str) -> Response {
+    (
+        status,
+        Json(contracts::ErrorEnvelope {
+            error: code.to_string(),
+            message: message.to_string(),
+        }),
+    )
+        .into_response()
 }
 
 /// Home page handler (R3: askama server-rendered).
@@ -203,4 +295,25 @@ pub async fn run(
     store: Arc<dyn SessionStore>,
 ) -> Result<(), HostError> {
     run_with_stop(cfg, storage, store, None).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn envelope_maps_to_correct_status_and_shape() {
+        let r = envelope(
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "unavailable",
+            "session backend temporarily unavailable",
+        );
+        assert_eq!(r.status(), axum::http::StatusCode::SERVICE_UNAVAILABLE);
+        let ct = r
+            .headers()
+            .get(axum::http::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap();
+        assert!(ct.contains("application/json"));
+    }
 }
