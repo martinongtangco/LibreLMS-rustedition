@@ -44,9 +44,12 @@ async fn real_engine_full_crud() {
         .run_migrations(&manifest)
         .await
         .expect("migration 2");
-    assert_eq!(
-        applied, applied2,
-        "idempotent: second run applies nothing new (applied={applied:?} applied2={applied2:?})"
+    // 001 US2.3 contract: the SECOND run is a no-op. (CR-6: on a fresh
+    // container the first run applies [0001, 0002, 0003] and the second
+    // applies [] — `applied == applied2` can never hold fresh.)
+    assert!(
+        applied2.is_empty(),
+        "idempotent: second run applies nothing (applied={applied:?} applied2={applied2:?})"
     );
 
     // 2. Repo against the real engine.

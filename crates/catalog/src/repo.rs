@@ -30,6 +30,18 @@ pub enum CatalogError {
     Unavailable,
 }
 
+impl std::fmt::Display for CatalogError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotFound => write!(f, "course not found"),
+            Self::Scope => write!(f, "out of scope"),
+            Self::Forbidden => write!(f, "forbidden"),
+            Self::Validation { field, message } => write!(f, "validation: {field}: {message}"),
+            Self::Unavailable => write!(f, "storage unavailable"),
+        }
+    }
+}
+
 /// The course repository seam (in-crate per the Module Persistence Seam).
 #[async_trait::async_trait]
 pub trait CourseRepo: Send + Sync {
