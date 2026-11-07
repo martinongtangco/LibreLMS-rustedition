@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use askama::Template;
-use axum::extract::{FromRef, FromRequestParts, State};
+use axum::extract::{FromRequestParts, State};
 use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
