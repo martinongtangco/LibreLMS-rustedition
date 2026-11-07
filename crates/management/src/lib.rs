@@ -3,6 +3,7 @@
 //! `ManagementRepo` contract; T004 makes it green.
 
 pub mod repo;
+pub mod tiberius;
 
 /// The module's migration manifest — EMPTY BY CONSTRUCTION (spec 006 FR-013,
 /// plan decision #1): every table this slice writes is foundation-owned DDL
