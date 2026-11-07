@@ -82,7 +82,6 @@ async fn boot(
     role: &contracts::Role,
     user_id: &str,
 ) -> String {
-    let _ = &_mgmt; // T006 mounts this into run_with_stop (one-line-mount convention)
     let s = MemoryStorage::new();
     s.run_migrations(shared::migrate::MIGRATIONS)
         .await
@@ -115,6 +114,10 @@ async fn boot(
             Arc::new(catalog::repo::InMemoryCourseRepo::new()),
             Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new()),
             Arc::new(enrollment::memory::InMemoryCourseSource::new()),
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
+            _mgmt,
             None,
         )
         .await
@@ -207,7 +210,7 @@ async fn duplicate_email_is_409() {
     let mgmt = Arc::new(InMemoryManagementRepo::new());
     let token = boot(17705, mgmt, &contracts::Role::Admin, "admin-3").await;
     let create = r#"{"email":"dup@e.com","name":"D","role":"member"}"#;
-    call(
+    let (first, _) = call(
         17705,
         "POST",
         "/admin/users",
@@ -217,11 +220,16 @@ async fn duplicate_email_is_409() {
     )
     .await
     .expect("connected");
+    assert_eq!(first, 201, "first create → 201, got {first}");
+    // NOTE-2: same email AND same name → idempotent upsert (201, the user row
+    // is not re-created, the membership is upserted) — NOT a 409. The 409
+    // is the identity conflict: same email, DIFFERENT name.
+    let conflict = r#"{"email":"dup@e.com","name":"CONFLICT","role":"member"}"#;
     let (code, body) = call(
         17705,
         "POST",
         "/admin/users",
-        Some(create),
+        Some(conflict),
         Some(&token),
         Some(ORG),
     )

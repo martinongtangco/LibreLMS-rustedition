@@ -10,6 +10,7 @@ contracts = { path = "../contracts" }
 shared = { path = "../shared" }
 tokio = { workspace = true, features = ["rt", "macros"] }
 async-trait.workspace = true
+axum.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tiberius.workspace = true

@@ -107,6 +107,7 @@ async fn boot(
             scorm_repo,
             scorm_bag,
             scorm_port,
+            std::sync::Arc::new(management::repo::InMemoryManagementRepo::new()),
             None,
         )
         .await
