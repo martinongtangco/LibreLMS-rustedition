@@ -4,3 +4,15 @@ version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+
+[dependencies]
+contracts = { path = "../contracts" }
+shared = { path = "../shared" }
+tokio = { workspace = true, features = ["rt", "macros"] }
+async-trait.workspace = true
+axum.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+futures.workspace = true
+tiberius.workspace = true
+tokio-util = { workspace = true, features = ["compat"] }

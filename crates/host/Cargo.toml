@@ -20,8 +20,12 @@ serde_json.workspace = true
 async-trait.workspace = true
 contracts = { path = "../contracts" }
 enrollment = { path = "../enrollment" }
+scorm = { path = "../scorm" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
 axum = { workspace = true, features = ["ws"] }
 rand.workspace = true
+tiberius.workspace = true
+tokio-util.workspace = true
+futures.workspace = true

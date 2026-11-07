@@ -45,6 +45,8 @@ pub struct AppState {
     pub catalog_state: catalog::routes::RepoState,
     /// Enrollment slice state (spec 004; host mount pattern).
     pub enrollment_state: enrollment::routes::RepoState,
+    /// SCORM slice state (spec 005; host mount pattern).
+    pub scorm_state: scorm::routes::RepoState,
 }
 
 /// The home page (askama — R3).
@@ -82,6 +84,13 @@ impl axum::extract::FromRef<AppState> for enrollment::routes::RepoState {
     }
 }
 
+impl axum::extract::FromRef<AppState> for scorm::routes::RepoState {
+    fn from_ref(state: &AppState) -> Self {
+        // RepoState is an Arc holder — cloning is cheap (0.8: owned return).
+        state.scorm_state.clone()
+    }
+}
+
 fn app(state: AppState) -> Router {
     // The caller middleware wraps ONLY the catalog routes — /healthz and / must
     // stay open (an auth-requiring layer there breaks the health gate).
@@ -115,11 +124,45 @@ fn app(state: AppState) -> Router {
             },
         ),
     );
+    // The caller middleware wraps ONLY the scorm routes — the bag key
+    // needs the session token_hash, re-read from the cookie (the extractor
+    // consumed it; the cookie is still on the request). The 001-reserved
+    // key is constructed inside the shared store — the module never names
+    // it (plan FR-003).
+    let scorm_routes = scorm::routes::routes().layer(
+        axum::middleware::from_fn_with_state(
+            state.clone(),
+            |Authed(ctx): Authed, mut req: axum::extract::Request, next: axum::middleware::Next| {
+                async move {
+                    let token_hash = req
+                        .headers()
+                        .get(axum::http::header::COOKIE)
+                        .and_then(|v| v.to_str().ok())
+                        .and_then(|v| {
+                            v.split(';').find_map(|kv| {
+                                let (k, val) = kv.trim().split_once('=')?;
+                                (k == "session").then_some(val)
+                            })
+                        })
+                        .map(auth::token_hash)
+                        .unwrap_or_default();
+                    req.extensions_mut().insert(scorm::routes::ScormCaller {
+                        user_id: ctx.user.id.clone(),
+                        organization_id: ctx.organization_id,
+                        role: ctx.role,
+                        token_hash,
+                    });
+                    next.run(req).await
+                }
+            },
+        ),
+    );
     Router::new()
         .route("/healthz", get(healthz))
         .route("/me", get(me))
         .merge(catalog_routes)
         .merge(enrollment_routes)
+        .merge(scorm_routes)
         .route("/", get(home))
         .with_state(state)
         .fallback(not_found)
@@ -280,6 +323,12 @@ async fn healthz(State(s): State<AppState>) -> axum::response::Response {
 /// Start the host: verify backends (fail-fast naming the item), run migrations,
 /// bind (port-in-use fails fast naming the port), serve until `stop` fires or
 /// the process signal arrives.
+/// The host's run entry with a stop handle (the Phase 1 lifecycle seam).
+/// `#[allow]`: the slice-count argument growth is structural (one triple
+/// per mounted module slice — the host IS the composition point);
+/// refactoring to a config struct would obscure the per-slice wiring
+/// that the 002/003/004/005 lessons keep explicit.
+#[allow(clippy::too_many_arguments)]
 pub async fn run_with_stop(
     cfg: Config,
     storage: Arc<dyn Storage>,
@@ -287,6 +336,9 @@ pub async fn run_with_stop(
     catalog_repo: Arc<dyn catalog::repo::CourseRepo>,
     enrollment_repo: Arc<dyn enrollment::repo::EnrollmentRepo>,
     course_source: Arc<dyn enrollment::repo::CourseSource>,
+    scorm_repo: Arc<dyn scorm::repo::ScormRepo>,
+    scorm_bag: Arc<dyn scorm::repo::BagStore>,
+    scorm_enrollment_port: Arc<dyn scorm::repo::EnrollmentPort>,
     stop: Option<Arc<Notify>>,
 ) -> Result<(), HostError> {
     // Fail-fast backend verification (spec US1: startup proof).
@@ -314,6 +366,12 @@ pub async fn run_with_stop(
             .iter()
             .map(|(n, sql)| (*n, *sql)),
     );
+    // Spec 005 lane: scorm's own migrations (Module Persistence Seam).
+    manifest.extend(
+        scorm::migrations::MIGRATIONS
+            .iter()
+            .map(|(n, sql)| (*n, *sql)),
+    );
     manifest.sort_by(|a, b| a.0.cmp(b.0));
     if let Err(e) = storage.run_migrations(&manifest).await {
         return Err(HostError::Startup(format!("migrations: {e}")));
@@ -336,6 +394,7 @@ pub async fn run_with_stop(
         cfg: cfg.clone(),
         catalog_state: catalog::routes::RepoState::new(catalog_repo.clone()),
         enrollment_state: enrollment::routes::RepoState::new(enrollment_repo, course_source),
+        scorm_state: scorm::routes::RepoState::new(scorm_repo, scorm_bag, scorm_enrollment_port),
     };
     let router = app(state);
 
@@ -365,6 +424,7 @@ pub async fn run_with_stop(
 }
 
 /// Production entry: process signal only.
+#[allow(clippy::too_many_arguments)]
 pub async fn run(
     cfg: Config,
     storage: Arc<dyn Storage>,
@@ -372,6 +432,9 @@ pub async fn run(
     catalog_repo: Arc<dyn catalog::repo::CourseRepo>,
     enrollment_repo: Arc<dyn enrollment::repo::EnrollmentRepo>,
     course_source: Arc<dyn enrollment::repo::CourseSource>,
+    scorm_repo: Arc<dyn scorm::repo::ScormRepo>,
+    scorm_bag: Arc<dyn scorm::repo::BagStore>,
+    scorm_enrollment_port: Arc<dyn scorm::repo::EnrollmentPort>,
 ) -> Result<(), HostError> {
     run_with_stop(
         cfg,
@@ -380,6 +443,9 @@ pub async fn run(
         catalog_repo,
         enrollment_repo,
         course_source,
+        scorm_repo,
+        scorm_bag,
+        scorm_enrollment_port,
         None,
     )
     .await

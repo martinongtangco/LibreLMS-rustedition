@@ -99,6 +99,9 @@ async fn boot(
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
             repo,
             source,
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
             None,
         )
         .await
