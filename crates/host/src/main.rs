@@ -110,7 +110,7 @@ async fn main() {
         let r =
             match management::tiberius::TiberiusManagementRepo::connect(cfg.database_url.as_str())
                 .await
-                .map_err(|e| format!("management: {}", e.to_string()))
+                .map_err(|e| format!("management: {e}"))
             {
                 Ok(r) => r,
                 Err(m) => {

@@ -267,7 +267,7 @@ async fn junk_role_is_400_naming_the_field_cr1() {
 async fn re_role_persists_and_list_reflects_it() {
     let mgmt = Arc::new(InMemoryManagementRepo::new());
     let token = boot(17707, mgmt, &contracts::Role::Admin, "admin-5").await;
-    let (c, _) = call(
+    let (c, b) = call(
         17707,
         "POST",
         "/admin/users",
@@ -278,13 +278,14 @@ async fn re_role_persists_and_list_reflects_it() {
     .await
     .expect("connected");
     assert_eq!(c, 201, "seed user created");
-    // RED: the user id is the 201 body's (T006 shape); the fixed id below is
-    // replaced by the real extraction with T006. The assertion pins the target:
+    // The user id is the 201 body's (T006 shape; T009: real extraction).
     // PUT /admin/users/{id}/role → 200 and GET /admin/users reflects it.
+    let seed: serde_json::Value = serde_json::from_str(&b).ok().unwrap();
+    let uid = seed.get("id").unwrap().as_str().unwrap().to_string();
     let (p, pb) = call(
         17707,
         "PUT",
-        "/admin/users/rr-id/role",
+        &format!("/admin/users/{uid}/role"),
         Some(r#"{"role":"member"}"#),
         Some(&token),
         Some(ORG),
@@ -306,7 +307,7 @@ async fn re_role_persists_and_list_reflects_it() {
 async fn remove_user_is_204_membership_gone_user_survives() {
     let mgmt = Arc::new(InMemoryManagementRepo::new());
     let token = boot(17708, mgmt, &contracts::Role::Admin, "admin-6").await;
-    let (c, _) = call(
+    let (c, b) = call(
         17708,
         "POST",
         "/admin/users",
@@ -317,10 +318,12 @@ async fn remove_user_is_204_membership_gone_user_survives() {
     .await
     .expect("connected");
     assert_eq!(c, 201, "seed user created");
+    let seed: serde_json::Value = serde_json::from_str(&b).ok().unwrap();
+    let uid = seed.get("id").unwrap().as_str().unwrap().to_string();
     let (d, db) = call(
         17708,
         "DELETE",
-        "/admin/users/rm-id",
+        &format!("/admin/users/{uid}"),
         None,
         Some(&token),
         Some(ORG),
@@ -344,7 +347,7 @@ async fn remove_user_is_204_membership_gone_user_survives() {
 async fn storage_outage_is_503_never_500_never_silent() {
     let mgmt = Arc::new(InMemoryManagementRepo::new());
     let token = boot(17709, mgmt.clone(), &contracts::Role::Admin, "admin-7").await;
-    mgmt.set_unavailable_for_test(true); // T006 mounts this repo; red now
+    mgmt.set_unavailable_for_test(true); // T006 mounts this repo
     let (code, body) = call(17709, "GET", "/admin/users", None, Some(&token), Some(ORG))
         .await
         .expect("connected");
@@ -352,5 +355,234 @@ async fn storage_outage_is_503_never_500_never_silent() {
         code, 503,
         "outage → 503 (never 500, never a silent list), got {code} ({body})"
     );
+    assert_eq!(error_code(&body).as_deref(), Some("storage-unavailable"));
+}
+
+// ---------- US2 (P2): the organization HTTP envelope matrix (T008) ----------
+
+#[tokio::test]
+async fn org_create_unauthenticated_is_401() {
+    let mgmt = Arc::new(InMemoryManagementRepo::new());
+    boot(17720, mgmt, &contracts::Role::Admin, "admin-401").await;
+    let (code, _) = call(
+        17720,
+        "POST",
+        "/admin/organizations",
+        Some(r#"{"name":"X"}"#),
+        None,
+        None,
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 401, "no cookie → 401, got {code}");
+}
+
+#[tokio::test]
+async fn org_endpoints_member_is_403_forbidden_role_gate() {
+    // The role gate fires BEFORE any id check (the 003 pattern): a member
+    // with a VALID org id still gets 403 forbidden — never a 200/404.
+    let mgmt = Arc::new(InMemoryManagementRepo::new());
+    let token = boot(17721, mgmt, &contracts::Role::Member, "mem-org").await;
+    let (code, _) = call(
+        17721,
+        "POST",
+        "/admin/organizations",
+        Some(r#"{"name":"X"}"#),
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 403, "member → 403 (role gate), got {code}");
+}
+
+#[tokio::test]
+async fn org_create_is_201_shape_id_and_name_only() {
+    let mgmt = Arc::new(InMemoryManagementRepo::new());
+    let token = boot(17722, mgmt, &contracts::Role::Admin, "admin-org").await;
+    let (code, body) = call(
+        17722,
+        "POST",
+        "/admin/organizations",
+        Some(r#"{"name":"Acme"}"#),
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 201, "org create → 201, got {code} ({body})");
+    let v: serde_json::Value = serde_json::from_str(&body).ok().unwrap();
+    assert!(v.get("id").is_some(), "201 body carries the id");
+    assert_eq!(v.get("name").and_then(|x| x.as_str()), Some("Acme"));
+}
+
+#[tokio::test]
+async fn org_list_includes_counts() {
+    let mgmt = Arc::new(InMemoryManagementRepo::new());
+    let token = boot(17723, mgmt, &contracts::Role::Admin, "admin-cnt").await;
+    let (code, _) = call(
+        17723,
+        "POST",
+        "/admin/organizations",
+        Some(r#"{"name":"C1"}"#),
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 201);
+    let (code, body) = call(
+        17723,
+        "GET",
+        "/admin/organizations",
+        None,
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 200, "list → 200, got {code}");
+    let v: serde_json::Value = serde_json::from_str(&body).ok().unwrap();
+    assert_eq!(v.as_array().unwrap().len(), 1, "one org listed");
+}
+
+#[tokio::test]
+async fn org_rename_persists_and_unknown_is_404() {
+    let mgmt = Arc::new(InMemoryManagementRepo::new());
+    let token = boot(17724, mgmt, &contracts::Role::Admin, "admin-ren").await;
+    let (_, cb) = call(
+        17724,
+        "POST",
+        "/admin/organizations",
+        Some(r#"{"name":"R1"}"#),
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    let id: serde_json::Value = serde_json::from_str(&cb).ok().unwrap();
+    let id = id.get("id").unwrap().as_str().unwrap().to_string();
+    let (code, _) = call(
+        17724,
+        "PUT",
+        &format!("/admin/organizations/{id}"),
+        Some(r#"{"name":"R2"}"#),
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 200, "rename → 200, got {code}");
+    let (code, body) = call(
+        17724,
+        "PUT",
+        "/admin/organizations/no-such-id",
+        Some(r#"{"name":"R3"}"#),
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(
+        code, 404,
+        "unknown org rename → 404 (CR-3 org-ids-only), got {code}"
+    );
+    assert_eq!(error_code(&body).as_deref(), Some("not-found"));
+}
+
+#[tokio::test]
+async fn org_delete_nonempty_is_409_not_empty() {
+    // FR-005: user ops target the SESSION's org only (a created org can only
+    // be filled by its own admin), so the 409 proof targets the session's
+    // org: the org row is ensured (test-only helper — 001's
+    // create_user_for_test pattern), a membership is added via the API, and
+    // the delete is refused with a stable code.
+    let mgmt = Arc::new(InMemoryManagementRepo::new());
+    let token = boot(17725, mgmt.clone(), &contracts::Role::Admin, "admin-del").await;
+    mgmt.ensure_org_for_test(ORG, "SessionOrg");
+    let (code, _) = call(
+        17725,
+        "POST",
+        "/admin/users",
+        Some(r#"{"email":"d@e.com","name":"D","role":"member"}"#),
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 201, "user create (fills the session org) → 201");
+    let (code, body) = call(
+        17725,
+        "DELETE",
+        &format!("/admin/organizations/{ORG}"),
+        None,
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 409, "non-empty delete → 409, got {code}");
+    assert_eq!(error_code(&body).as_deref(), Some("not-empty"));
+}
+
+#[tokio::test]
+async fn org_delete_empty_is_204_then_404() {
+    let mgmt = Arc::new(InMemoryManagementRepo::new());
+    let token = boot(17726, mgmt, &contracts::Role::Admin, "admin-dele").await;
+    let (_, cb) = call(
+        17726,
+        "POST",
+        "/admin/organizations",
+        Some(r#"{"name":"E1"}"#),
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    let id: serde_json::Value = serde_json::from_str(&cb).ok().unwrap();
+    let id = id.get("id").unwrap().as_str().unwrap().to_string();
+    let (code, _) = call(
+        17726,
+        "DELETE",
+        &format!("/admin/organizations/{id}"),
+        None,
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 204, "empty org delete → 204, got {code}");
+    let (code, body) = call(
+        17726,
+        "DELETE",
+        &format!("/admin/organizations/{id}"),
+        None,
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 404, "deleted org → 404, got {code}");
+    assert_eq!(error_code(&body).as_deref(), Some("not-found"));
+}
+
+#[tokio::test]
+async fn org_endpoints_unavailable_is_503_never_500() {
+    // Fault injection (the 003 pattern): a storage outage is a 503 with a
+    // stable code — never a 500, never a silent empty list.
+    let mgmt = Arc::new(InMemoryManagementRepo::new());
+    mgmt.set_unavailable_for_test(true);
+    let token = boot(17727, mgmt, &contracts::Role::Admin, "admin-down").await;
+    let (code, body) = call(
+        17727,
+        "GET",
+        "/admin/organizations",
+        None,
+        Some(&token),
+        Some(ORG),
+    )
+    .await
+    .expect("connected");
+    assert_eq!(code, 503, "outage → 503, got {code}");
     assert_eq!(error_code(&body).as_deref(), Some("storage-unavailable"));
 }

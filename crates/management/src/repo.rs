@@ -126,6 +126,21 @@ impl InMemoryManagementRepo {
         self.down.store(down, std::sync::atomic::Ordering::SeqCst);
     }
 
+    /// Test-only: ensure the org row exists (the 001
+    /// `create_user_for_test` pattern — the session's org has a
+    /// membership without an org row; the delete guard is on
+    /// memberships, but the org-row existence check is 404).
+    pub fn ensure_org_for_test(&self, id: &str, name: &str) {
+        self.orgs
+            .lock()
+            .unwrap()
+            .entry(id.to_string())
+            .or_insert_with(|| Org {
+                id: id.to_string(),
+                name: name.to_string(),
+            });
+    }
+
     fn is_down(&self) -> bool {
         self.down.load(std::sync::atomic::Ordering::SeqCst)
     }

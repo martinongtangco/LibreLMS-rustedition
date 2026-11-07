@@ -165,3 +165,127 @@ async fn junk_role_is_validation_naming_the_field() {
         "junk role string must not parse (T004 adds parse_role)"
     );
 }
+
+// ---------- US2 (P2): the organization repository battery (T007) ----------
+
+#[tokio::test]
+async fn create_org_persists_id_and_name_only() {
+    // FR-006/FR-007: 201-shape (id, name) — 001 (id, name) only, no
+    // description column (the 001 DDL is frozen ground truth).
+    let repo = InMemoryManagementRepo::new();
+    let org = repo.create_org("Acme").await.expect("create");
+    assert!(!org.id.is_empty(), "org id must be non-empty");
+    assert_eq!(org.name, "Acme");
+    let listed = repo.list_orgs().await.expect("list");
+    assert!(
+        listed
+            .iter()
+            .any(|(o, _)| o.id == org.id && o.name == "Acme"),
+        "created org must appear in the list"
+    );
+}
+
+#[tokio::test]
+async fn list_orgs_includes_member_counts() {
+    // FR-007: the list carries per-org member counts (memberships only — a
+    // user's membership in ANOTHER org must not leak into this count).
+    let repo = InMemoryManagementRepo::new();
+    let a = repo.create_org("Counts-A").await.unwrap();
+    let b = repo.create_org("Counts-B").await.unwrap();
+    repo.create_user(&a.id, "a1@e.com", "A1", &contracts::Role::Member)
+        .await
+        .unwrap();
+    repo.create_user(&a.id, "a2@e.com", "A2", &contracts::Role::Admin)
+        .await
+        .unwrap();
+    repo.create_user(&b.id, "b1@e.com", "B1", &contracts::Role::Member)
+        .await
+        .unwrap();
+    let listed = repo.list_orgs().await.unwrap();
+    let ca = listed.iter().find(|(o, _)| o.id == a.id).unwrap();
+    assert_eq!(ca.1, 2, "org A count = its two memberships only");
+    let cb = listed.iter().find(|(o, _)| o.id == b.id).unwrap();
+    assert_eq!(cb.1, 1, "org B count = its one membership only");
+}
+
+#[tokio::test]
+async fn rename_org_persists() {
+    // FR-008: rename persists; the list reflects the new name.
+    let repo = InMemoryManagementRepo::new();
+    let org = repo.create_org("Old-Name").await.unwrap();
+    repo.rename_org(&org.id, "New-Name").await.expect("rename");
+    let listed = repo.list_orgs().await.unwrap();
+    let renamed = listed.iter().find(|(o, _)| o.id == org.id).unwrap();
+    assert_eq!(renamed.0.name, "New-Name");
+}
+
+#[tokio::test]
+async fn rename_unknown_org_is_not_found_cr3() {
+    // CR-3: the 404 row is org-ids-only — an unknown org id is NotFound
+    // (NEVER Scope/Forbidden; those are user-side answers).
+    let repo = InMemoryManagementRepo::new();
+    let d = repo.rename_org("no-such-org", "Whatever").await;
+    assert!(
+        matches!(d, Err(ManagementError::NotFound)),
+        "unknown org rename → NotFound, got {d:?}"
+    );
+}
+
+#[tokio::test]
+async fn delete_nonempty_org_is_not_empty_and_nothing_deleted() {
+    // FR-009: the 409 not-empty guard is on MEMBERSHIPS (no silent cascade);
+    // on 409, NEITHER the org NOR any membership may have been deleted.
+    let repo = InMemoryManagementRepo::new();
+    let org = repo.create_org("Keep").await.unwrap();
+    repo.create_user(&org.id, "k@e.com", "K", &contracts::Role::Member)
+        .await
+        .unwrap();
+    let d = repo.delete_org(&org.id).await;
+    assert!(
+        matches!(d, Err(ManagementError::NotEmpty)),
+        "non-empty delete → NotEmpty, got {d:?}"
+    );
+    let listed = repo.list_orgs().await.unwrap();
+    assert!(
+        listed.iter().any(|(o, _)| o.id == org.id),
+        "the org must survive a refused delete"
+    );
+    let users = repo.list_users(&org.id).await.unwrap();
+    assert_eq!(
+        users.len(),
+        1,
+        "the membership must survive a refused delete"
+    );
+}
+
+#[tokio::test]
+async fn delete_empty_org_succeeds_and_membership_cascade() {
+    // FR-008/FR-009: an EMPTY org deletes (204 at the HTTP edge); the
+    // session cascade (CR-2b, sessions-before-org-row) is proven on the real
+    // engine at T013(c) — the double holds no session rows by construction.
+    let repo = InMemoryManagementRepo::new();
+    let org = repo.create_org("Ephemeral").await.unwrap();
+    let u = repo
+        .create_user(&org.id, "e@e.com", "E", &contracts::Role::Member)
+        .await
+        .unwrap();
+    repo.remove_membership(&org.id, &u.user.id)
+        .await
+        .expect("remove the only membership");
+    repo.delete_org(&org.id).await.expect("empty org deletes");
+    let listed = repo.list_orgs().await.unwrap();
+    assert!(
+        !listed.iter().any(|(o, _)| o.id == org.id),
+        "deleted org must not list"
+    );
+}
+
+#[tokio::test]
+async fn delete_unknown_org_is_not_found() {
+    let repo = InMemoryManagementRepo::new();
+    let d = repo.delete_org("no-such-org").await;
+    assert!(
+        matches!(d, Err(ManagementError::NotFound)),
+        "unknown org delete → NotFound, got {d:?}"
+    );
+}
