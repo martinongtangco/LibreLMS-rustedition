@@ -41,6 +41,8 @@ pub struct AppState {
     pub storage: Arc<dyn Storage>,
     pub store: Arc<dyn SessionStore>,
     pub cfg: Config,
+    /// Catalog slice state (spec 003; host mount pattern).
+    pub catalog_state: catalog::routes::RepoState,
 }
 
 /// The home page (askama — R3).
@@ -48,6 +50,13 @@ pub struct AppState {
 #[template(path = "index.html")]
 struct HomePage {
     title: String,
+}
+
+impl axum::extract::FromRef<AppState> for catalog::routes::RepoState {
+    fn from_ref(state: &AppState) -> Self {
+        // RepoState is an Arc holder — cloning is cheap (0.8: owned return).
+        state.catalog_state.clone()
+    }
 }
 
 impl axum::response::IntoResponse for HomePage {
@@ -65,9 +74,25 @@ impl axum::response::IntoResponse for HomePage {
 }
 
 fn app(state: AppState) -> Router {
+    // The caller middleware wraps ONLY the catalog routes — /healthz and / must
+    // stay open (an auth-requiring layer there breaks the health gate).
+    let catalog_routes = catalog::routes::routes()
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            |Authed(ctx): Authed, mut req: axum::extract::Request, next: axum::middleware::Next| {
+                async move {
+                    req.extensions_mut().insert(catalog::routes::CatalogCaller {
+                        organization_id: ctx.organization_id,
+                        role: ctx.role,
+                    });
+                    next.run(req).await
+                }
+            },
+        ));
     Router::new()
         .route("/healthz", get(healthz))
         .route("/me", get(me))
+        .merge(catalog_routes)
         .route("/", get(home))
         .with_state(state)
         .fallback(not_found)
@@ -232,6 +257,7 @@ pub async fn run_with_stop(
     cfg: Config,
     storage: Arc<dyn Storage>,
     store: Arc<dyn SessionStore>,
+    catalog_repo: Arc<dyn catalog::repo::CourseRepo>,
     stop: Option<Arc<Notify>>,
 ) -> Result<(), HostError> {
     // Fail-fast backend verification (spec US1: startup proof).
@@ -243,10 +269,17 @@ pub async fn run_with_stop(
     }
     // CR-2 seam: base manifest + every module's MIGRATIONS (name-ordered).
     // Module manifests land with their slices; the runner is already generic.
-    let manifest: Vec<(&str, &str)> = shared::migrate::MIGRATIONS
+    let mut manifest: Vec<(&str, &str)> = shared::migrate::MIGRATIONS
         .iter()
         .map(|(n, sql)| (*n, *sql))
         .collect();
+    // Spec 003 lane: catalog's own migrations (Module Persistence Seam).
+    manifest.extend(
+        catalog::migrations::MIGRATIONS
+            .iter()
+            .map(|(n, sql)| (*n, *sql)),
+    );
+    manifest.sort_by(|a, b| a.0.cmp(b.0));
     if let Err(e) = storage.run_migrations(&manifest).await {
         return Err(HostError::Startup(format!("migrations: {e}")));
     }
@@ -263,9 +296,10 @@ pub async fn run_with_stop(
     };
 
     let state = AppState {
-        storage,
-        store,
-        cfg,
+        storage: storage.clone(),
+        store: store.clone(),
+        cfg: cfg.clone(),
+        catalog_state: catalog::routes::RepoState::new(catalog_repo.clone()),
     };
     let router = app(state);
 
@@ -299,8 +333,9 @@ pub async fn run(
     cfg: Config,
     storage: Arc<dyn Storage>,
     store: Arc<dyn SessionStore>,
+    catalog_repo: Arc<dyn catalog::repo::CourseRepo>,
 ) -> Result<(), HostError> {
-    run_with_stop(cfg, storage, store, None).await
+    run_with_stop(cfg, storage, store, catalog_repo, None).await
 }
 
 #[cfg(test)]

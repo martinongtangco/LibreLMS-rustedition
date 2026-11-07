@@ -17,6 +17,7 @@ repository = "https://github.com/martinongtangco/LibreLMS-rustedition"
 
 [workspace.dependencies]
 axum = "0.8"
+futures = "0.3"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace"] }
 tiberius = { version = "0.13", features = ["tokio"] }

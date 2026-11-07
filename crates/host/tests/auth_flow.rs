@@ -34,7 +34,14 @@ async fn missing_cookie_is_401_with_envelope() {
     let (storage, _token) = make_token("dev-user", "dev-org").await;
     let store = Arc::new(MemorySessionStore::new());
     let handle = tokio::spawn(async move {
-        host::run_with_stop(AppConfig::valid(17321), storage, store, None).await
+        host::run_with_stop(
+            AppConfig::valid(17321),
+            storage,
+            store,
+            std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            None,
+        )
+        .await
     });
     assert!(wait_health_ok(17321).await, "serving");
 
@@ -51,7 +58,14 @@ async fn valid_cookie_in_scope_is_200_identity() {
     let (storage, token) = make_token("dev-user", "dev-org").await;
     let store = Arc::new(MemorySessionStore::new());
     let handle = tokio::spawn(async move {
-        host::run_with_stop(AppConfig::valid(17322), storage, store, None).await
+        host::run_with_stop(
+            AppConfig::valid(17322),
+            storage,
+            store,
+            std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            None,
+        )
+        .await
     });
     assert!(wait_health_ok(17322).await, "serving");
 
@@ -79,7 +93,14 @@ async fn valid_cookie_out_of_scope_is_403() {
     let (storage, token) = make_token("dev-user", "dev-org").await;
     let store = Arc::new(MemorySessionStore::new());
     let handle = tokio::spawn(async move {
-        host::run_with_stop(AppConfig::valid(17323), storage, store, None).await
+        host::run_with_stop(
+            AppConfig::valid(17323),
+            storage,
+            store,
+            std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            None,
+        )
+        .await
     });
     assert!(wait_health_ok(17323).await, "serving");
 
@@ -122,7 +143,14 @@ async fn expired_cookie_is_401_never_500() {
     storage.create_session(&row).await.expect("create");
     let store = Arc::new(MemorySessionStore::new());
     let handle = tokio::spawn(async move {
-        host::run_with_stop(AppConfig::valid(17324), storage, store, None).await
+        host::run_with_stop(
+            AppConfig::valid(17324),
+            storage,
+            store,
+            std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            None,
+        )
+        .await
     });
     assert!(wait_health_ok(17324).await, "serving");
 

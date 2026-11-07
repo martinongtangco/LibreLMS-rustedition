@@ -6,17 +6,17 @@ deterministic check. Loop check per iteration:
 
 ## Foundational (P0)
 
-- [ ] **T001** Add `catalog` crate deps (contracts, shared; tiberius via workspace) + `pub const MIGRATIONS` in `catalog::migrations` exposing `0003_catalog.sql` (courses table + org index); host concatenates the catalog manifest (seam from spec 001 CR-2). *Check: workspace builds; boundary script clean.*
-- [ ] **T002** Write `0003_catalog.sql` (idempotent `IF OBJECT_ID IS NULL CREATE TABLE` pattern, whole-script batch per spec 001 CR-E). *Check: script executes as one batch on live MSSQL in the full-env run; idempotent second run.*
+- [x] **T001** Add `catalog` crate deps (contracts, shared; tiberius via workspace) + `pub const MIGRATIONS` in `catalog::migrations` exposing `0003_catalog.sql` (courses table + org index); host concatenates the catalog manifest (seam from spec 001 CR-2). *Check: workspace builds; boundary script clean.*
+- [x] **T002** Write `0003_catalog.sql` (idempotent `IF OBJECT_ID IS NULL CREATE TABLE` pattern, whole-script batch per spec 001 CR-E). *Check: script executes as one batch on live MSSQL in the full-env run; idempotent second run.*
 
 ## User Story 1 — scoped listing + filter (P1)
 
-- [ ] **T003** (test-first) `crates/catalog/tests/repo.rs`: `InMemoryCourseRepo` double + tests: list returns exactly the session org's courses (SC-004 fixture); case-insensitive substring filter — 100% precision/recall on a fixture battery (SC-002); empty org → empty list, not error; empty search = full list. **RED before double exists.**
-- [ ] **T004** Implement `InMemoryCourseRepo` + `CourseRepo` trait (list(title_filter), get, create, update, delete) until T003 green.
-- [ ] **T005** (test-first) `crates/catalog/tests/scope.rs`: cross-org fixture (2 orgs) — zero visibility across orgs on list and get (SC-004); get of other-org course → `Scope` (403 semantics), never `NotFound` (no existence oracle, spec story 3.2).
-- [ ] **T006** Implement scope rules in `repo.rs` (`CatalogError::Scope/Forbidden/NotFound`) until T005 green.
-- [ ] **T007** (test-first) `crates/host/tests/catalog_flow.rs`: `GET /courses` — 401 envelope without session; 200 list for in-scope member; `?title=` filter through the HTTP surface; 503 envelope when the repository reports `Unavailable`. **RED before routes exist.**
-- [ ] **T008** Wire `catalog::routes` into the host router (state carries the repo) until T007 green.
+- [x] **T003** (test-first) `crates/catalog/tests/repo.rs`: `InMemoryCourseRepo` double + tests: list returns exactly the session org's courses (SC-004 fixture); case-insensitive substring filter — 100% precision/recall on a fixture battery (SC-002); empty org → empty list, not error; empty search = full list. **RED before double exists.**
+- [x] **T004** Implement `InMemoryCourseRepo` + `CourseRepo` trait (list(title_filter), get, create, update, delete) until T003 green.
+- [x] **T005** (test-first) `crates/catalog/tests/scope.rs`: cross-org fixture (2 orgs) — zero visibility across orgs on list and get (SC-004); get of other-org course → `Scope` (403 semantics), never `NotFound` (no existence oracle, spec story 3.2).
+- [x] **T006** Implement scope rules in `repo.rs` (`CatalogError::Scope/Forbidden/NotFound`) until T005 green.
+- [x] **T007** (test-first) `crates/host/tests/catalog_flow.rs`: `GET /courses` — 401 envelope without session; 200 list for in-scope member; `?title=` filter through the HTTP surface; 503 envelope when the repository reports `Unavailable`. **RED before routes exist.**
+- [x] **T008** Wire `catalog::routes` into the host router (state carries the repo) until T007 green.
 
 ## User Story 2 — admin CRUD (P2)
 
@@ -28,14 +28,14 @@ deterministic check. Loop check per iteration:
 
 ## User Story 3 — permissions & scope enforcement (P3)
 
-- [ ] **T014** (test-first) `scope.rs` permission matrix (spec story 3): member write → `Forbidden`; admin cross-org write → `Scope`; unknown id → `NotFound`; no-leakage assertion on error bodies (no backend internals, no other-org data).
+- [x] **T014** (test-first) `scope.rs` permission matrix (spec story 3): member write → `Forbidden`; admin cross-org write → `Scope`; unknown id → `NotFound`; no-leakage assertion on error bodies (no backend internals, no other-org data).
 - [ ] **T015** Implement the matrix in `repo.rs` until T014 green.
-- [ ] **T016** (test-first) Concurrency/robustness tests: last-write-wins on double (two updates, both succeed, no corruption); injection-shaped search terms treated as plain text (no error).
+- [x] **T016** (test-first) Concurrency/robustness tests: last-write-wins on double (two updates, both succeed, no corruption); injection-shaped search terms treated as plain text (no error).
 
 ## Real-engine (Principle XIII/XVI — gated, Agent B deciding)
 
-- [ ] **T017** Implement `TiberiusCourseRepo` (parameterized queries, `dbo.courses`, timestamp conventions per spec 001) + `tests/catalog_full_env.rs` (gated: skips visibly without env; with env — migrate `0003`, CRUD round-trip, second-migration no-op, cross-org 403 on the real engine).
-- [ ] **T018** Wire the real repo into `host::main` (in-memory only in tests; real in production path).
+- [x] **T017** Implement `TiberiusCourseRepo` (parameterized queries, `dbo.courses`, timestamp conventions per spec 001) + `tests/catalog_full_env.rs` (gated: skips visibly without env; with env — migrate `0003`, CRUD round-trip, second-migration no-op, cross-org 403 on the real engine).
+- [x] **T018** Wire the real repo into `host::main` (in-memory only in tests; real in production path).
 
 ## Final (P4)
 
