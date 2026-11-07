@@ -300,29 +300,38 @@ impl CourseRepo for TiberiusCourseRepo {
     ) -> Result<Course, CatalogError> {
         // Existence + scope first (404 vs 403 semantics).
         let _ = self.get(course_id, session_org).await?;
-        let mut g = self.guard().await?;
-        let g = g.as_mut().ok_or(CatalogError::Unavailable)?;
-        let now_sql = unix_ts_to_sql(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_secs() as i64)
-                .unwrap_or(0),
-        );
-        // COALESCE keeps the old value when the field is absent from the update.
-        let affected = g
-            .execute(
-                "UPDATE dbo.courses
-                 SET title = COALESCE(@P1, title),
-                     description = COALESCE(@P2, description),
-                     updated_at = CAST(@P3 AS DATETIME2)
-                 WHERE id = @P4 AND organization_id = @P5",
-                &[&title, &description, &now_sql, &course_id, &session_org],
-            )
-            .await
-            .map_err(|_| CatalogError::Unavailable)?;
-        if affected.rows_affected().iter().sum::<u64>() == 0 {
-            return Err(CatalogError::NotFound);
+        // CR-9: the execute runs INSIDE a scoped guard block — the guard is
+        // DROPPED before the final self.get(). The client mutex is
+        // non-reentrant: calling a sibling method while holding the guard
+        // makes the task wait on the lock it holds (infinite hang; the
+        // in-memory double has no mutex, so the deterministic suite is
+        // structurally blind to it — the 004 PQ-1 lesson, one class deeper).
+        {
+            let mut g = self.guard().await?;
+            let g = g.as_mut().ok_or(CatalogError::Unavailable)?;
+            let now_sql = unix_ts_to_sql(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0),
+            );
+            // COALESCE keeps the old value when the field is absent from the update.
+            let affected = g
+                .execute(
+                    "UPDATE dbo.courses
+                     SET title = COALESCE(@P1, title),
+                         description = COALESCE(@P2, description),
+                         updated_at = CAST(@P3 AS DATETIME2)
+                     WHERE id = @P4 AND organization_id = @P5",
+                    &[&title, &description, &now_sql, &course_id, &session_org],
+                )
+                .await
+                .map_err(|_| CatalogError::Unavailable)?;
+            if affected.rows_affected().iter().sum::<u64>() == 0 {
+                return Err(CatalogError::NotFound);
+            }
         }
+        // Guard dropped — sibling call is safe.
         self.get(course_id, session_org).await
     }
 
