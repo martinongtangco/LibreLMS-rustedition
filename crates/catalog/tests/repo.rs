@@ -2,7 +2,7 @@
 //! tests define the `InMemoryCourseRepo` behavior; T004 makes them green.
 //! Fixtures: 2 organizations, 5 courses (SC-002/SC-004 battery).
 
-use catalog::repo::{CourseRepo, InMemoryCourseRepo};
+use catalog::repo::{CatalogError, CourseRepo, InMemoryCourseRepo};
 use contracts::Course;
 
 const ORG_A: &str = "org-a";
@@ -101,13 +101,14 @@ async fn find_by_id_is_unscoped_and_absent_is_none() {
     })
     .await
     .expect("seed");
-    let found = repo.find_by_id("c1").await;
+    let found = repo.find_by_id("c1").await.expect("up");
     assert!(found.is_some(), "finds across orgs (unscoped — port seam)");
     assert_eq!(found.unwrap().organization_id, "orgA");
-    assert!(repo.find_by_id("nope").await.is_none(), "absent → None");
+    let absent = repo.find_by_id("nope").await.expect("up");
+    assert!(absent.is_none(), "absent → Ok(None)");
     repo.set_unavailable_for_test(true);
     assert!(
-        repo.find_by_id("c1").await.is_none(),
-        "outage → None (the port maps it to Unavailable at the host layer)"
+        matches!(repo.find_by_id("c1").await, Err(CatalogError::Unavailable)),
+        "outage → Err(Unavailable) — never reads as 'not found'"
     );
 }

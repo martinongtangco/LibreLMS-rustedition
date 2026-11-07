@@ -211,9 +211,9 @@ impl CourseRepo for TiberiusCourseRepo {
         }
     }
 
-    async fn find_by_id(&self, course_id: &str) -> Option<Course> {
-        let mut g = self.guard().await.ok()?;
-        let g = g.as_mut()?;
+    async fn find_by_id(&self, course_id: &str) -> Result<Option<Course>, CatalogError> {
+        let mut g = self.guard().await?;
+        let g = g.as_mut().ok_or(CatalogError::Unavailable)?;
         let row = g
             .query(
                 "SELECT TOP 1 id, title, description, organization_id
@@ -221,21 +221,23 @@ impl CourseRepo for TiberiusCourseRepo {
                 &[&course_id],
             )
             .await
-            .ok()?
+            .map_err(|_| CatalogError::Unavailable)?
             .into_row()
             .await
-            .ok()?;
-        let row = row?;
+            .map_err(|_| CatalogError::Unavailable)?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
         let cid: Option<&str> = row.get(0);
         let title: Option<&str> = row.get(1);
         let desc: Option<&str> = row.get(2);
         let org: Option<&str> = row.get(3);
-        Some(Course {
+        Ok(Some(Course {
             id: cid.unwrap_or(course_id).to_string(),
             title: title.unwrap_or("").to_string(),
             description: desc.unwrap_or("").to_string(),
             organization_id: org.unwrap_or("").to_string(),
-        })
+        }))
     }
 
     async fn create(

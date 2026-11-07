@@ -47,7 +47,9 @@ pub trait CourseRepo: Send + Sync {
     /// Unscoped by-id lookup (PQ-2 seam: serves the `CourseSource` port's
     /// `course_title` — the host adapter uses it; scope is the caller's
     /// decision via `get`/`course_exists_in_org`-style checks).
-    async fn find_by_id(&self, course_id: &str) -> Option<Course>;
+    /// `Ok(None)` = absent; `Err(Unavailable)` = storage outage (the port
+    /// maps it to 503 — an outage must never read as "course not found").
+    async fn find_by_id(&self, course_id: &str) -> Result<Option<Course>, CatalogError>;
 
     /// Admin: create a course in the session's organization (validation: title
     /// non-empty ≤ 200 chars; description ≤ 5,000).
@@ -242,12 +244,12 @@ impl CourseRepo for InMemoryCourseRepo {
         Ok(())
     }
 
-    async fn find_by_id(&self, course_id: &str) -> Option<Course> {
+    async fn find_by_id(&self, course_id: &str) -> Result<Option<Course>, CatalogError> {
         if self.is_down() {
-            return None;
+            return Err(CatalogError::Unavailable);
         }
         let inner = self.courses.lock().await;
-        inner.get(course_id).cloned()
+        Ok(inner.get(course_id).cloned())
     }
 }
 
