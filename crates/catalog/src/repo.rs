@@ -44,6 +44,11 @@ pub trait CourseRepo: Send + Sync {
     /// Get one course; `Scope` if it exists in another org, `NotFound` if absent.
     async fn get(&self, course_id: &str, session_org: &str) -> Result<Course, CatalogError>;
 
+    /// Unscoped by-id lookup (PQ-2 seam: serves the `CourseSource` port's
+    /// `course_title` — the host adapter uses it; scope is the caller's
+    /// decision via `get`/`course_exists_in_org`-style checks).
+    async fn find_by_id(&self, course_id: &str) -> Option<Course>;
+
     /// Admin: create a course in the session's organization (validation: title
     /// non-empty ≤ 200 chars; description ≤ 5,000).
     async fn create(
@@ -235,6 +240,14 @@ impl CourseRepo for InMemoryCourseRepo {
         scope_check(course, session_org)?;
         g.remove(course_id);
         Ok(())
+    }
+
+    async fn find_by_id(&self, course_id: &str) -> Option<Course> {
+        if self.is_down() {
+            return None;
+        }
+        let inner = self.courses.lock().await;
+        inner.get(course_id).cloned()
     }
 }
 

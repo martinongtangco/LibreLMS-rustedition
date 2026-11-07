@@ -95,6 +95,12 @@ async fn real_engine_full_crud() {
         "absent id → NotFound, got {missing:?}"
     );
 
+    // 5b. Unscoped port lookup (PQ-2 seam: course_title provider).
+    let found = repo.find_by_id(&created.id).await;
+    assert!(found.is_some(), "find_by_id on the real engine");
+    assert_eq!(found.unwrap().title, "Full env course");
+    assert!(repo.find_by_id("does-not-exist").await.is_none());
+
     // 5. Validation on the real engine (FR-007).
     let bad = repo.create("org-full-env", "", None).await;
     assert!(

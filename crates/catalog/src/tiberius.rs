@@ -211,6 +211,33 @@ impl CourseRepo for TiberiusCourseRepo {
         }
     }
 
+    async fn find_by_id(&self, course_id: &str) -> Option<Course> {
+        let mut g = self.guard().await.ok()?;
+        let g = g.as_mut()?;
+        let row = g
+            .query(
+                "SELECT TOP 1 id, title, description, organization_id
+                 FROM dbo.courses WHERE id = @P1",
+                &[&course_id],
+            )
+            .await
+            .ok()?
+            .into_row()
+            .await
+            .ok()?;
+        let row = row?;
+        let cid: Option<&str> = row.get(0);
+        let title: Option<&str> = row.get(1);
+        let desc: Option<&str> = row.get(2);
+        let org: Option<&str> = row.get(3);
+        Some(Course {
+            id: cid.unwrap_or(course_id).to_string(),
+            title: title.unwrap_or("").to_string(),
+            description: desc.unwrap_or("").to_string(),
+            organization_id: org.unwrap_or("").to_string(),
+        })
+    }
+
     async fn create(
         &self,
         session_org: &str,

@@ -89,3 +89,25 @@ async fn empty_org_and_empty_filter() {
     let all = repo.list_for(ORG_A, Some("")).await.expect("empty filter");
     assert_eq!(all.len(), 4, "empty search term = full list");
 }
+
+#[tokio::test]
+async fn find_by_id_is_unscoped_and_absent_is_none() {
+    let repo = InMemoryCourseRepo::new();
+    repo.create_for_test(Course {
+        id: "c1".into(),
+        title: "t".into(),
+        description: String::new(),
+        organization_id: "orgA".into(),
+    })
+    .await
+    .expect("seed");
+    let found = repo.find_by_id("c1").await;
+    assert!(found.is_some(), "finds across orgs (unscoped — port seam)");
+    assert_eq!(found.unwrap().organization_id, "orgA");
+    assert!(repo.find_by_id("nope").await.is_none(), "absent → None");
+    repo.set_unavailable_for_test(true);
+    assert!(
+        repo.find_by_id("c1").await.is_none(),
+        "outage → None (the port maps it to Unavailable at the host layer)"
+    );
+}
