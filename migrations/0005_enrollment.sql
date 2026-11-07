@@ -3,7 +3,8 @@
 -- No cross-module FKs (plan decision: an FK to dbo.courses would make this
 -- slice's migration DDL-order-dependent on spec 003; integrity is the
 -- CourseSource check at write time, organization_id is denormalized).
--- Timestamps: unix seconds (001 wire convention, e.g. dbo.sessions).
+-- Timestamps: unix seconds (004's own convention — 001 uses DATETIME2; the
+-- column type is a module choice, no DDL coupling).
 IF OBJECT_ID(N'dbo.enrollments', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.enrollments (

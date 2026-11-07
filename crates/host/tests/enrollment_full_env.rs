@@ -84,7 +84,10 @@ async fn real_engine_full_battery() {
                 .expect("race repo connect"),
         ));
     }
-    // All 8 tasks are spawned (and thus in flight on their own connections)
+    // 8 independent repo instances, one connection each — a single-client
+    // repo would serialize the contest. (Spawn ≠ immediate execution; the
+    // proof stands on the independent connections + engine arbitration +
+    // the row-count/code assertions below.)
     // before any is awaited — a genuine engine-side contest.
     let handles: Vec<_> = repos
         .iter()
