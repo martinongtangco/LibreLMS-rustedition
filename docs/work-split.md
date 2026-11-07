@@ -54,9 +54,31 @@ ownership. Amended only via PR.
   materialization (Guid/DATETIME2 as &str) → client-side self-deadlock →
   test-literal no-ops → fmt — every one closed and engine-proven on fresh
   containers before merge.
-- **Next on main (90/90 green):** Agent A: spec 006 (Management) doloop
-  (`story/006-management` in progress). Agent B: spec 005 (SCORM) plan +
-  tasks, then `story/005-scorm` implementation (spec approved `2851ccf`,
-  plan-level wire discipline: NVARCHAR(40) NEWID-string ids, no
-  UNIQUEIDENTIFIER read as &str, 2601/2627 on both error legs, N-launch
-  race over N independent connections).
+- **Agent B — SCORM (spec 005): MERGED** as `535d8db story 005: SCORM (#4)`
+  (2026-11-07). Spec (CRs folded `2851ccf`), plan + 18 tasks (plan-level
+  wire discipline verified against the implementation by Agent A), 18 tasks
+  all gates green. Deciding evidence: fresh-container full-env run on the
+  exact pushed commit — 5-slice migration manifest (applied run-1 + no-op
+  run-2), N=8 independent-connection launch race (1 winner + 7
+  AttemptExists via 2601/2627 mapping, never a 500, never a second row),
+  commit durability across reconnect, finished_at engine belt, 4,000-char
+  injection-shaped suspend round-trip, post-state exactly 5
+  `schema_migrations` rows (independent sqlcmd probe: 3 scorm rows, 1
+  enrollment, 0 courses, seed user). Host is now a 10-arg
+  `run_with_stop` (documented allow); 107/107 deterministic on main.
+  Design NOTE on record (peer review): the finish ordering
+  (finalize → record_completion) is intentional — do NOT re-order in
+  Phase 4; the outage case self-heals via session scoping.
+- **Next (main 107/107 green):** Agent A: spec 006 (Management) doloop —
+  4/15 tasks at last sync; identity-upsert design decision documented
+  (same (email,name) idempotent join, name-conflict 409, the engine's
+  UNIQUE as concurrency arbiter); PR expected, then Agent B reviews
+  (standing checklist: guard-scoping, re-role upsert INSERT-leg PK →
+  idempotent success, sessions-before-org-row delete cascade, 403-scope
+  for unknown user, N=8 duplicate-email race). **Phase 4 (Agent B, ONE PR
+  after 006 merges):** both cross-slice adapters (004 CourseSource ← 003
+  catalog with the 404/403 decision procedure; 005 EnrollmentPort ← 004
+  repo with idempotent first-wins record_completion) + the cross-slice
+  E2E (enroll via 004 → scorm launch → finish passed → completion visible
+  in the 004 list) + the all-slice full_env battery (pre-state 4060,
+  post-state across all six migrations).
