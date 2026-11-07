@@ -6,6 +6,7 @@
 
 use futures::StreamExt;
 use rand::SeedableRng;
+use tokio_util::compat::TokioAsyncWriteCompatExt;
 
 use contracts::Role;
 use management::migrations::MIGRATIONS as MANAGEMENT_MIGRATIONS;
@@ -61,26 +62,43 @@ async fn management_full_env_battery() {
             .map(|(n, sql)| (*n, *sql)),
     );
     manifest.extend(MANAGEMENT_MIGRATIONS.iter().map(|(n, sql)| (*n, *sql)));
-    // NOTE (006 CR-1, non-blocking, folded post-merge): the strict
-    // `len == 5` assertion is first-touch order-sensitive in a SHARED-CYCLE
-    // run (a runner that already applied part of the manifest observes a
-    // smaller `applied` set — the 2026-11-07 review observed [0003, 0006]
-    // at 0.11s, a runner artifact, not a product bug). The intended /
-    // deciding configuration is the STANDALONE fresh-container run
-    // (pre-state DB absent), where exactly the five non-empty scripts
-    // apply. The order-invariant variant lands with the Phase 4
-    // shared-container runner.
+    // CR-1 fix (the Phase-4 shared-container runner — the note is now
+    // folded): the strict `len == 5` is first-touch order-sensitive in a
+    // SHARED-CYCLE run (a runner that already applied part of the manifest
+    // observes a smaller `applied` set — the 2026-11-07 review observed
+    // [0003, 0006] at 0.11s, a runner artifact, not a product bug).
+    // Order-invariant variant: the DELTA is asserted only when the database
+    // was fresh; the post-state SET is asserted on every run.
+    let pre: i32 = probe_migration_count(&url).await.unwrap_or(0);
     let applied = storage
         .run_migrations(&manifest)
         .await
         .expect("first run applies the full manifest");
     let names: Vec<String> = applied.clone();
-    eprintln!("applied: {names:?}");
-    assert_eq!(
-        applied.len(),
-        5,
-        "a FRESH database applies exactly the five non-empty scripts \
+    eprintln!("applied: {names:?} (pre-state migration rows: {pre})");
+    if pre == 0 {
+        assert_eq!(
+            applied.len(),
+            5,
+            "a FRESH database applies exactly the five non-empty scripts \
          (management is empty by construction), got {names:?}"
+        );
+    }
+    // The post-state SET (order-invariant on every run — a shared-cycle
+    // run still converges to the full set).
+    let set: Vec<String> = probe_migration_set(&url)
+        .await
+        .expect("post-state migration set");
+    assert_eq!(
+        set,
+        vec![
+            "0001_base",
+            "0002_seed",
+            "0003_catalog",
+            "0005_enrollment",
+            "0006_scorm",
+        ],
+        "post-state = the five non-empty migrations (order-invariant)"
     );
     let applied2 = storage.run_migrations(&manifest).await.expect("second run");
     assert!(
@@ -276,4 +294,121 @@ async fn management_full_env_battery() {
         "the org created by a dropped client is visible to a fresh client \
          (the system of record is the database, not the connection)"
     );
+}
+
+/// A direct engine connection (a test-side read-only inspection — the
+/// 005 convention).
+async fn probe_migration_count(url: &str) -> Result<i32, String> {
+    let (host, port, user, pass, db, encrypt) = parse_probe_mgmt(url)?;
+    let mut config = tiberius::Config::new();
+    config.database(&db);
+    config.authentication(tiberius::AuthMethod::sql_server(&user, &pass));
+    config.encryption(if encrypt {
+        tiberius::EncryptionLevel::On
+    } else {
+        tiberius::EncryptionLevel::NotSupported
+    });
+    if encrypt {
+        config.trust_cert();
+    }
+    let tcp = tokio::net::TcpStream::connect((host.as_str(), port))
+        .await
+        .map_err(|e| format!("probe tcp: {e}"))?;
+    tcp.set_nodelay(true)
+        .map_err(|e| format!("probe nodelay: {e}"))?;
+    let mut probe = tiberius::Client::connect(config, tcp.compat_write())
+        .await
+        .map_err(|e| format!("probe tds: {e}"))?;
+    let mut stream = probe
+        .query("SELECT COUNT(*) FROM dbo.schema_migrations", &[])
+        .await
+        .map_err(|e| format!("probe query: {e}"))?;
+    while let Some(item) = stream.next().await {
+        let item = item.map_err(|e| format!("probe stream: {e}"))?;
+        if let tiberius::QueryItem::Row(row) = item {
+            if let Some(v) = row.get::<i32, _>(0) {
+                return Ok(v);
+            }
+        }
+    }
+    Err("probe: no scalar row".to_string())
+}
+
+/// A direct engine connection (read-only row inspection — the 005
+/// convention).
+async fn probe_migration_set(url: &str) -> Result<Vec<String>, String> {
+    let (host, port, user, pass, db, encrypt) = parse_probe_mgmt(url)?;
+    let mut config = tiberius::Config::new();
+    config.database(&db);
+    config.authentication(tiberius::AuthMethod::sql_server(&user, &pass));
+    config.encryption(if encrypt {
+        tiberius::EncryptionLevel::On
+    } else {
+        tiberius::EncryptionLevel::NotSupported
+    });
+    if encrypt {
+        config.trust_cert();
+    }
+    let tcp = tokio::net::TcpStream::connect((host.as_str(), port))
+        .await
+        .map_err(|e| format!("probe tcp: {e}"))?;
+    tcp.set_nodelay(true)
+        .map_err(|e| format!("probe nodelay: {e}"))?;
+    let mut probe = tiberius::Client::connect(config, tcp.compat_write())
+        .await
+        .map_err(|e| format!("probe tds: {e}"))?;
+    let mut stream = probe
+        .query("SELECT name FROM dbo.schema_migrations ORDER BY name", &[])
+        .await
+        .map_err(|e| format!("probe query: {e}"))?;
+    let mut rows = Vec::new();
+    while let Some(item) = stream.next().await {
+        let item = item.map_err(|e| format!("probe stream: {e}"))?;
+        if let tiberius::QueryItem::Row(row) = item {
+            if let Some(s) = row.get::<&str, _>(0) {
+                rows.push(s.to_string());
+            }
+        }
+    }
+    Ok(rows)
+}
+
+/// Parses `mssql://user:pass@host:port/db?query` (the 005 convention:
+/// the db name is derived AFTER stripping the query string — the CR-B
+/// lesson; encrypt=disable|off|false → OFF; no encrypt param → ON).
+fn parse_probe_mgmt(url: &str) -> Result<(String, u16, String, String, String, bool), String> {
+    let rest = url
+        .strip_prefix("mssql://")
+        .or_else(|| url.strip_prefix("sqlserver://"))
+        .ok_or_else(|| format!("bad url scheme: {url}"))?;
+    let (rest, query) = rest.split_once('?').unwrap_or((rest, ""));
+    let encrypt = match query.split('&').find_map(|kv| {
+        kv.split_once('=')
+            .filter(|(k, _)| k.eq_ignore_ascii_case("encrypt"))
+            .map(|(_, v)| v.to_lowercase())
+    }) {
+        Some(v) => !matches!(v.as_str(), "disable" | "off" | "false"),
+        None => true,
+    };
+    let (creds, hostpart) = rest
+        .split_once('@')
+        .ok_or_else(|| format!("missing @: {url}"))?;
+    let (user, pass) = creds
+        .split_once(':')
+        .ok_or_else(|| format!("missing pass: {url}"))?;
+    let (hostport, db) = hostpart
+        .rsplit_once('/')
+        .ok_or_else(|| format!("missing db: {url}"))?;
+    let (host, port) = hostport
+        .rsplit_once(':')
+        .ok_or_else(|| format!("missing port: {url}"))?;
+    let port = port.parse().map_err(|e| format!("bad port: {e}"))?;
+    Ok((
+        host.to_string(),
+        port,
+        user.to_string(),
+        pass.to_string(),
+        db.to_string(),
+        encrypt,
+    ))
 }

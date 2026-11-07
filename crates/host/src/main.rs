@@ -72,10 +72,12 @@ async fn main() {
             }
         };
 
-    // CourseSource port (spec 004, PQ-2): Phase 4 wires the catalog→port
-    // adapter against the 003 provider shape (b4f3008). Until then the
-    // honest stub: outage (503) — never a fake 404/200 (N1 discipline).
-    let course_source: Arc<dyn enrollment::repo::CourseSource> = Arc::new(UnwiredCourseSource);
+    // CourseSource port (spec 004, PQ-2): PHASE 4 — the catalog→port
+    // adapter is wired (the 003 provider's find_by_id seam; the 404/403
+    // decision procedure lives in the adapter; an outage is 503, never a
+    // fake Ok(None) — N1 discipline).
+    let course_source: Arc<dyn enrollment::repo::CourseSource> =
+        Arc::new(host::adapters::CatalogCourseSource::new(catalog.clone()));
 
     // SCORM slice (spec 005): the REAL engine (no in-memory staging — the
     // 002 lesson: the gate never inspects main.rs, so the real wiring is
@@ -99,12 +101,13 @@ async fn main() {
     // never names it).
     let scorm_bag: Arc<dyn scorm::repo::BagStore> =
         Arc::new(scorm::tiberius::SessionBagStore::new(store.clone()));
-    // EnrollmentPort (spec 005, FR-008): Phase 4 wires the 004-repository
-    // adapter (~10 lines). Until then the honest stub: outage (503) — never
-    // a fake 404/200/completion (the 004 N1 discipline, extended to the
-    // completion path: a completion outage is never a fake success).
-    let scorm_enrollment_port: Arc<dyn scorm::repo::EnrollmentPort> =
-        Arc::new(UnwiredEnrollmentPort);
+    // EnrollmentPort (spec 005, FR-008): PHASE 4 — the 004-repository
+    // adapter is wired (+ the 003 catalog for the port's 404/403 course
+    // check, FR-002). First-completion-wins is the 004 engine's
+    // guarantee; a completion outage is never a fake success (N1).
+    let scorm_enrollment_port: Arc<dyn scorm::repo::EnrollmentPort> = Arc::new(
+        host::adapters::EnrollmentRepoPort::new(enrollment_repo.clone(), course_source.clone()),
+    );
 
     let management_repo: Arc<dyn management::repo::ManagementRepo> = {
         let r =
@@ -137,53 +140,5 @@ async fn main() {
     {
         eprintln!("{e}");
         std::process::exit(1);
-    }
-}
-
-/// Phase 4 placeholder: the catalog→CourseSource adapter is not wired yet in
-/// this slice — every call is a storage-outage (503), never a fake absence
-/// (plan N1: an outage must never be conflated with absence).
-struct UnwiredCourseSource;
-
-#[async_trait::async_trait]
-impl enrollment::repo::CourseSource for UnwiredCourseSource {
-    async fn course_title(
-        &self,
-        _course_id: &str,
-    ) -> Result<Option<String>, enrollment::repo::EnrollmentError> {
-        Err(enrollment::repo::EnrollmentError::Unavailable)
-    }
-    async fn course_exists_in_org(
-        &self,
-        _course_id: &str,
-        _org_id: &str,
-    ) -> Result<bool, enrollment::repo::EnrollmentError> {
-        Err(enrollment::repo::EnrollmentError::Unavailable)
-    }
-}
-
-/// Phase 4 placeholder: the 004-repository EnrollmentPort adapter is not
-/// wired yet in this slice — every call is a storage-outage (503), never a
-/// fake 404/200/completion (the 004 N1 discipline; a completion outage is
-/// never a fake success, spec 005 FR-005/FR-008).
-struct UnwiredEnrollmentPort;
-
-#[async_trait::async_trait]
-impl scorm::repo::EnrollmentPort for UnwiredEnrollmentPort {
-    async fn enrollment_status(
-        &self,
-        _learner_id: &str,
-        _course_id: &str,
-        _org_id: &str,
-    ) -> Result<scorm::repo::LaunchGate, scorm::repo::ScormError> {
-        Err(scorm::repo::ScormError::Unavailable)
-    }
-    async fn record_completion(
-        &self,
-        _learner_id: &str,
-        _course_id: &str,
-        _org_id: &str,
-    ) -> Result<(), scorm::repo::ScormError> {
-        Err(scorm::repo::ScormError::Unavailable)
     }
 }

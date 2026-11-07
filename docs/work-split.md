@@ -99,3 +99,17 @@ ownership. Amended only via PR.
   + the cross-slice E2E (enroll via 004 → scorm launch → finish passed →
   completion visible in the 004 list) + the all-slice full_env battery
   (pre-state 4060, post-state across all six migrations).
+  **STATUS (in progress):** `story/phase4-integration` on `e26dcd8` — the
+  real adapters (`crates/host/src/adapters.rs`: `CatalogCourseSource`,
+  `EnrollmentRepoPort` — the production wiring in main.rs, the honest stubs
+  removed) + the cross-slice E2E (`phase4_e2e.rs`: full HTTP loop with the
+  title resolved through the 003 adapter, the 404/403 decision procedure
+  proven across the whole stack, the N1 outage-never-fake battery) + the
+  all-slice full-env battery (`phase4_full_env.rs`: fresh 5-script manifest
+  + idempotency + order-invariant post-state SET, the cross-slice data
+  path on the real engine through the real adapters, the 005 finish
+  ordering kept (finalize before record_completion), the real host boot
+  with the production wiring, post-state probes) + the 006 CR-1 fix
+  (management_full_env (b) order-invariant: delta only on fresh, SET on
+  every run). Deciding fresh-container gate green on the branch tip
+  (1.23s real, `applied:` all five, post-state 5/1/1/1/1).
