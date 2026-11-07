@@ -6,13 +6,13 @@ battery committed RED against its stub before its green.
 
 ## Phase 0 — Setup
 
-- [ ] **T001** [P] Declare `crates/management/Cargo.toml` deps (contracts, shared, tiberius, tokio, serde/serde_json, async-trait — all workspace) and wire `management` into `crates/host/Cargo.toml`. *Check: workspace builds; boundary script clean.*
+- [x] **T001** [P] Declare `crates/management/Cargo.toml` deps (contracts, shared, tiberius, tokio, serde/serde_json, async-trait — all workspace) and wire `management` into `crates/host/Cargo.toml`. *Check: workspace builds; boundary script clean.*
 
 ## Phase 1 — US1: learner management (P1)
 
-- [ ] **T002** [P] [US1] RED: `crates/management/tests/repo.rs` — create-in-org persists (email, name, role, placeholder-hash convention); list-own-org returns only the actor-org's users with roles; re-role persists (admin→member); remove deletes ONLY the membership (user row survives, still present in other orgs); duplicate email (sequential) → `DuplicateEmail` (LOGIC-LAYER label); cross-org user op → `Scope` (CR-3: unknown user id ALSO → `Scope`, never `NotFound`); junk role → `Validation` (CR-1).
+- [x] **T002** [P] [US1] RED: `crates/management/tests/repo.rs` — create-in-org persists (email, name, role, placeholder-hash convention); list-own-org returns only the actor-org's users with roles; re-role persists (admin→member); remove deletes ONLY the membership (user row survives, still present in other orgs); duplicate email (sequential) → `DuplicateEmail` (LOGIC-LAYER label); cross-org user op → `Scope` (CR-3: unknown user id ALSO → `Scope`, never `NotFound`); junk role → `Validation` (CR-1).
 - [ ] **T003** [P] [US1] RED: `crates/host/tests/management_flow.rs` — `POST /admin/users` 401 without session; 201 in-scope admin; 403 `forbidden` member; 403 `scope` cross-org; 409 `duplicate-email`; 400 naming the field (incl. role — CR-1); `PUT /admin/users/{id}/role` 200 + `GET /admin/users` reflects it; `DELETE /admin/users/{id}` 204 (membership gone, user survives); 503 on `Unavailable` (never 500, never silent).
-- [ ] **T004** [US1] Implement `ManagementRepo` trait + `ManagementError` (Scope/Forbidden/NotFound/DuplicateEmail/NotEmpty/Validation/Unavailable) + `InMemoryManagementRepo` (double + fault injection) + validation (FR-012 incl. role — CR-1) until T002/T003 green.
+- [x] **T004** [US1] Implement `ManagementRepo` trait + `ManagementError` (Scope/Forbidden/NotFound/DuplicateEmail/NotEmpty/Validation/Unavailable) + `InMemoryManagementRepo` (double + fault injection) + validation (FR-012 incl. role — CR-1) until T002/T003 green.
 - [ ] **T005** [US1] Implement `TiberiusManagementRepo` (wire-edge CASTs per 001 convention; 2601 **and** 2627 → `DuplicateEmail` on BOTH error legs; CHECK-violation 2627-class → `Validation` (CR-1), never 500; re-role upsert; remove = membership row only) until the repo double/real parity holds.
 - [ ] **T006** [US1] Wire `management::routes` (learner endpoints) into the host (one-line-mount convention, docs 767d690) with role-gate + org-scope-gate + the error→envelope mapping until T003 green.
 

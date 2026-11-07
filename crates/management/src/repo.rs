@@ -110,9 +110,7 @@ pub trait ManagementRepo: Send + Sync {
 #[derive(Debug, Default)]
 pub struct InMemoryManagementRepo {
     users: std::sync::Mutex<std::collections::HashMap<String, User>>,
-    memberships: std::sync::Mutex<
-        std::collections::HashMap<(String, String), Role>,
-    >,
+    memberships: std::sync::Mutex<std::collections::HashMap<(String, String), Role>>,
     orgs: std::sync::Mutex<std::collections::HashMap<String, Org>>,
     /// Test-only fault injection (the 001 MemorySessionStore pattern).
     down: Arc<std::sync::atomic::AtomicBool>,
@@ -125,24 +123,11 @@ impl InMemoryManagementRepo {
 
     /// Test-only fault injection (the 003 double pattern).
     pub fn set_unavailable_for_test(&self, down: bool) {
-        self.down
-            .store(down, std::sync::atomic::Ordering::SeqCst);
+        self.down.store(down, std::sync::atomic::Ordering::SeqCst);
     }
 
     fn is_down(&self) -> bool {
         self.down.load(std::sync::atomic::Ordering::SeqCst)
-    }
-
-    /// T002 RED: the stub fails the battery on purpose until T004.
-    fn stub(&self) -> ManagementError {
-        if self.is_down() {
-            ManagementError::Unavailable
-        } else {
-            ManagementError::Validation {
-                field: "stub",
-                message: "T002 red: implementation lands in T004".into(),
-            }
-        }
     }
 }
 
@@ -150,51 +135,236 @@ impl InMemoryManagementRepo {
 impl ManagementRepo for InMemoryManagementRepo {
     async fn create_user(
         &self,
-        _org: &str,
-        _email: &str,
-        _name: &str,
-        _role: &Role,
+        org: &str,
+        email: &str,
+        name: &str,
+        role: &Role,
     ) -> Result<ManagedUser, ManagementError> {
-        Err(self.stub())
+        if self.is_down() {
+            return Err(ManagementError::Unavailable);
+        }
+        // FR-012 app-layer validation FIRST (the engine CHECK/UNIQUE is the belt).
+        if email.is_empty() || email.len() > 320 {
+            return Err(ManagementError::Validation {
+                field: "email",
+                message: "email must be non-empty and ≤ 320 chars".into(),
+            });
+        }
+        if name.is_empty() || name.len() > 200 {
+            return Err(ManagementError::Validation {
+                field: "name",
+                message: "name must be non-empty and ≤ 200 chars".into(),
+            });
+        }
+        // Duplicate-email semantics (documented — Principle X): the user row
+        // is GLOBAL with a UNIQUE email. Same identity (email AND name) →
+        // idempotent: the user row is not re-created; the target-org
+        // membership is upserted (the multi-org "join" path). Different name
+        // on the same email → DuplicateEmail (identity conflict). The engine
+        // belt (T013(a)): CONCURRENT identical creates race the pre-check —
+        // both see "absent", both INSERT, the loser's 2601/2627 maps to
+        // DuplicateEmail; the engine's UNIQUE constraint is the final
+        // arbiter, the logic layer is best-effort.
+        let users = self.users.lock().unwrap();
+        if let Some(existing) = users.values().find(|u| u.email == email) {
+            if existing.name != name {
+                return Err(ManagementError::DuplicateEmail);
+            }
+            let user = existing.clone();
+            drop(users);
+            self.memberships
+                .lock()
+                .unwrap()
+                .insert((org.to_string(), user.id.clone()), role.clone());
+            return Ok(ManagedUser {
+                user,
+                role: role.clone(),
+            });
+        }
+        let id = format!("mu-{}", users.len() + 1);
+        let user = User {
+            id: id.clone(),
+            email: email.into(),
+            name: name.into(),
+            theme: "default".into(),
+        };
+        drop(users);
+        self.users.lock().unwrap().insert(id.clone(), user.clone());
+        self.memberships
+            .lock()
+            .unwrap()
+            .insert((org.to_string(), id.clone()), role.clone());
+        Ok(ManagedUser {
+            user,
+            role: role.clone(),
+        })
     }
-    async fn list_users(&self, _org: &str) -> Result<Vec<ManagedUser>, ManagementError> {
-        Err(self.stub())
+
+    async fn list_users(&self, org: &str) -> Result<Vec<ManagedUser>, ManagementError> {
+        if self.is_down() {
+            return Err(ManagementError::Unavailable);
+        }
+        let users = self.users.lock().unwrap();
+        let memberships = self.memberships.lock().unwrap();
+        let mut out: Vec<ManagedUser> = memberships
+            .iter()
+            .filter(|((o, _), _)| o == org)
+            .filter_map(|((_, uid), role)| {
+                users.get(uid).map(|user| ManagedUser {
+                    user: user.clone(),
+                    role: role.clone(),
+                })
+            })
+            .collect();
+        out.sort_by(|a, b| a.user.id.cmp(&b.user.id));
+        Ok(out)
     }
-    async fn set_role(
-        &self,
-        _org: &str,
-        _user_id: &str,
-        _role: &Role,
-    ) -> Result<(), ManagementError> {
-        Err(self.stub())
+
+    async fn set_role(&self, org: &str, user_id: &str, role: &Role) -> Result<(), ManagementError> {
+        if self.is_down() {
+            return Err(ManagementError::Unavailable);
+        }
+        // CR-3: user-side answers Scope (403), never NotFound — a known user
+        // without a membership in `org`, and an unknown user id, are
+        // indistinguishable. The engine's upsert INSERT-leg 2601/2627
+        // (concurrent create_user already wrote the membership) maps to
+        // idempotent success (plan NOTE-2); the double is sequential, so the
+        // INSERT leg is the not-yet-written case → Scope here.
+        let known = self
+            .users
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(_, u)| u.id == user_id);
+        if !known {
+            return Err(ManagementError::Scope);
+        }
+        let mut memberships = self.memberships.lock().unwrap();
+        match memberships.get_mut(&(org.to_string(), user_id.to_string())) {
+            Some(r) => {
+                *r = role.clone();
+                Ok(())
+            }
+            None => Err(ManagementError::Scope),
+        }
     }
-    async fn remove_membership(
-        &self,
-        _org: &str,
-        _user_id: &str,
-    ) -> Result<(), ManagementError> {
-        Err(self.stub())
+
+    async fn remove_membership(&self, org: &str, user_id: &str) -> Result<(), ManagementError> {
+        if self.is_down() {
+            return Err(ManagementError::Unavailable);
+        }
+        let known = self
+            .users
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(_, u)| u.id == user_id);
+        if !known {
+            return Err(ManagementError::Scope);
+        }
+        // FR-004: the membership row only — the user row survives.
+        let mut memberships = self.memberships.lock().unwrap();
+        match memberships.remove(&(org.to_string(), user_id.to_string())) {
+            Some(_) => Ok(()),
+            None => Err(ManagementError::Scope),
+        }
     }
-    async fn create_org(&self, _name: &str) -> Result<Org, ManagementError> {
-        Err(self.stub())
+
+    async fn create_org(&self, name: &str) -> Result<Org, ManagementError> {
+        if self.is_down() {
+            return Err(ManagementError::Unavailable);
+        }
+        if name.is_empty() || name.len() > 200 {
+            return Err(ManagementError::Validation {
+                field: "name",
+                message: "org name must be non-empty and ≤ 200 chars".into(),
+            });
+        }
+        let mut orgs = self.orgs.lock().unwrap();
+        let id = format!("org-{}", orgs.len() + 1);
+        let org = Org {
+            id: id.clone(),
+            name: name.into(),
+        };
+        orgs.insert(id, org.clone());
+        Ok(org)
     }
+
     async fn list_orgs(&self) -> Result<Vec<(Org, u32)>, ManagementError> {
-        Err(self.stub())
+        if self.is_down() {
+            return Err(ManagementError::Unavailable);
+        }
+        let orgs = self.orgs.lock().unwrap();
+        let memberships = self.memberships.lock().unwrap();
+        let mut out: Vec<(Org, u32)> = orgs
+            .iter()
+            .map(|(id, org)| {
+                let count = memberships.iter().filter(|((o, _), _)| o == id).count() as u32;
+                (org.clone(), count)
+            })
+            .collect();
+        out.sort_by(|a, b| a.0.id.cmp(&b.0.id));
+        Ok(out)
     }
-    async fn rename_org(&self, _org_id: &str, _name: &str) -> Result<(), ManagementError> {
-        Err(self.stub())
+
+    async fn rename_org(&self, org_id: &str, name: &str) -> Result<(), ManagementError> {
+        if self.is_down() {
+            return Err(ManagementError::Unavailable);
+        }
+        if name.is_empty() || name.len() > 200 {
+            return Err(ManagementError::Validation {
+                field: "name",
+                message: "org name must be non-empty and ≤ 200 chars".into(),
+            });
+        }
+        let mut orgs = self.orgs.lock().unwrap();
+        match orgs.get_mut(org_id) {
+            Some(o) => {
+                o.name = name.into();
+                Ok(())
+            }
+            None => Err(ManagementError::NotFound),
+        }
     }
-    async fn delete_org(&self, _org_id: &str) -> Result<(), ManagementError> {
-        Err(self.stub())
+
+    async fn delete_org(&self, org_id: &str) -> Result<(), ManagementError> {
+        if self.is_down() {
+            return Err(ManagementError::Unavailable);
+        }
+        let orgs = self.orgs.lock().unwrap();
+        if !orgs.contains_key(org_id) {
+            return Err(ManagementError::NotFound);
+        }
+        drop(orgs);
+        // FR-009: 409 not-empty guard on MEMBERSHIPS (no silent cascade); the
+        // session cascade (CR-2b) is ordered before the org row delete — the
+        // double holds no session rows (001 ground truth), so the guard is the
+        // full behavior here; T013(c) proves the cascade on the real engine.
+        let count = self
+            .memberships
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|((o, _), _)| o == org_id)
+            .count();
+        if count > 0 {
+            return Err(ManagementError::NotEmpty);
+        }
+        self.orgs.lock().unwrap().remove(org_id);
+        Ok(())
     }
 }
 
-/// T002 RED stub: role validation at the wire edge (FR-012, CR-1 — the
-/// engine CHECK; the route-level 400 is the belt). Red: rejects everything;
-/// T004 implements the real {admin, member} parse.
-pub fn parse_role(_raw: &str) -> Result<Role, ManagementError> {
-    Err(ManagementError::Validation {
-        field: "stub",
-        message: "T002 red: parse_role lands in T004".into(),
-    })
+/// Role validation at the wire edge (FR-012, CR-1 — the engine CHECK is the
+/// belt; this parse is the app-layer first line; the route 400 names the
+/// field).
+pub fn parse_role(raw: &str) -> Result<Role, ManagementError> {
+    match raw {
+        "admin" => Ok(Role::Admin),
+        "member" => Ok(Role::Member),
+        _ => Err(ManagementError::Validation {
+            field: "role",
+            message: "role must be 'admin' or 'member'".into(),
+        }),
+    }
 }

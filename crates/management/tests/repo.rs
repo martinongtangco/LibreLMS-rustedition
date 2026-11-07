@@ -15,8 +15,8 @@
 //!   CHECK; the route-level 400 is the belt, T008).
 
 use contracts::Role;
-use management::repo::{InMemoryManagementRepo, ManagementError};
 use management::repo::ManagementRepo as _;
+use management::repo::{InMemoryManagementRepo, ManagementError};
 
 const ORG: &str = "org-a";
 const OTHER: &str = "org-b";
@@ -35,7 +35,8 @@ async fn create_user_persists_email_name_role() {
     // list-own-org returns the created user with its role (FR-003).
     let list = repo.list_users(ORG).await.expect("T002 RED: list_users");
     assert!(
-        list.iter().any(|u| u.user.email == "learner@example.com" && u.role == Role::Member),
+        list.iter()
+            .any(|u| u.user.email == "learner@example.com" && u.role == Role::Member),
         "created user listed with role, got {list:?}"
     );
 }
