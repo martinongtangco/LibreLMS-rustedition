@@ -75,6 +75,8 @@ async fn startup_with_valid_config_reports_ok_health() {
     let port = free_port().await;
     let storage: Arc<dyn shared::storage::Storage> = Arc::new(MemoryStorage::new());
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
+    let enrollment_repo = Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new());
+    let course_source = Arc::new(enrollment::memory::InMemoryCourseSource::new());
     let stop = Arc::new(tokio::sync::Notify::new());
     let stop2 = stop.clone();
     let handle = tokio::spawn(async move {
@@ -112,6 +114,8 @@ async fn degraded_when_session_store_down() {
     let storage: Arc<dyn shared::storage::Storage> = Arc::new(MemoryStorage::new());
     let mem_store = MemorySessionStore::new();
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(mem_store.clone());
+    let enrollment_repo = Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new());
+    let course_source = Arc::new(enrollment::memory::InMemoryCourseSource::new());
     let stop = Arc::new(tokio::sync::Notify::new());
     let stop2 = stop.clone();
     let handle = tokio::spawn(async move {
@@ -145,6 +149,8 @@ async fn port_in_use_fails_fast_naming_the_port() {
         .expect("holder binds");
     let storage: Arc<dyn shared::storage::Storage> = Arc::new(MemoryStorage::new());
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
+    let enrollment_repo = Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new());
+    let course_source = Arc::new(enrollment::memory::InMemoryCourseSource::new());
     let start = Instant::now();
     let res = host::run_with_stop(
         cfg(port),

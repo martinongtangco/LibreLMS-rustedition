@@ -186,7 +186,7 @@ async fn enroll_out_of_scope_course_is_403_scope() {
     assert_eq!(code, 403, "foreign-org course → 403: {body}");
     assert!(body.contains("scope"), "code: {body}");
     // No row was written (SC-002 create direction).
-    let (code, body) = call(17604, "GET", "/enrollments", None, Some(&token))
+    let (_code, body) = call(17604, "GET", "/enrollments", None, Some(&token))
         .await
         .expect("connected");
     assert!(body.trim() == "[]", "nothing persisted: {body}");
