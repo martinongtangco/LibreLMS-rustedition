@@ -16,7 +16,7 @@ observation") and are written first — red, then green.
 ## Phase 1: Setup
 
 - [ ] **T001** Declare crate dependencies in `crates/enrollment/Cargo.toml` (tiberius, tokio, serde/serde_json, async-trait — versions from workspace `Cargo.toml`; no new dependencies) and wire `enrollment` into the host (`crates/host/Cargo.toml`)
-- [ ] **T002** [P] Create `crates/enrollment/src/migrations/0005_enrollment.sql` (dbo.enrollments with `UNIQUE (learner_id, course_id)` constraint + dbo.completions with `enrollment_id` PK — plan Data Model) and expose `pub const MIGRATIONS: &[(&str, &str)]` (spec 001 manifest-generic runner; whole-script batches per CR-E)
+- [ ] **T002** [P] Create `crates/enrollment/src/migrations/0005_enrollment.sql` (dbo.enrollments: learner_id UNIQUEIDENTIFIER (matches 001's users.id), course_id NVARCHAR(40) (1:1 with 003's wire-edge NEWID string — plan CR-2), `UNIQUE (learner_id, course_id)` constraint + dbo.completions with `enrollment_id` PK — plan Data Model) and expose `pub const MIGRATIONS: &[(&str, &str)]` (spec 001 manifest-generic runner; whole-script batches per CR-E)
 
 ## Phase 2: Foundational (blocks all stories)
 
@@ -75,7 +75,7 @@ unauthenticated → 401; unknown course id → 404 (not 403).
 
 ## Phase 6: Cross-Cutting & Polish
 
-- [ ] **T016** [P] Gated full-environment test `crates/host/tests/enrollment_full_env.rs` (gated on live services — self-skips visibly, NEVER a silent pass): (a) the SC-003 RACE PROOF — N=8 concurrent duplicate create-attempts for one (learner, course) on live MSSQL assert exactly ONE row + losers all got the stable `already-enrolled` code (PQ-1); (b) migration idempotency on the real engine (second run no-op); (c) the US3.4 durability assertion (rows survive a fresh client reconnect)
+- [ ] **T016** [P] Gated full-environment test `crates/host/tests/enrollment_full_env.rs` (gated on live services — self-skips visibly, NEVER a silent pass): (a) the SC-003 RACE PROOF — **N=8 independent `TiberiusEnrollmentRepo` instances (one connection each — a single-client repo would serialize the joins on its own mutex and the UNIQUE constraint would never see a real contest, plan CR-1)**, `tokio::join!`-ed, N=8 concurrent duplicate create-attempts for one (learner, course) on live MSSQL assert exactly ONE row + losers all got the stable `already-enrolled` code (PQ-1); (b) migration idempotency on the real engine (second run no-op); (c) the US3.4 durability assertion (rows survive a fresh client reconnect)
 - [ ] **T017** Full gate sweep on a clean checkout: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo build --workspace`, `cargo test --workspace --no-fail-fast`, `check-boundaries.sh` — all green (SC-004/SC-005 local half); the full-env test's deciding run is Agent B's fresh-container machine (Principle XVI — a SKIP is not a pass)
 - [ ] **T018** Update `docs/work-split.md` status (Phase 3 Enrollment done) + PR body with the Principle XIII evidence (gate outputs + the fresh-container full-env run result + SC-003 race proof)
 

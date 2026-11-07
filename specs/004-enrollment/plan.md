@@ -94,6 +94,14 @@ pub trait CourseSource: Send + Sync {
 2. `course_title(id) = Some(_)` + `course_exists_in_org(id, session_org) = false` → **403** `scope` — out-of-scope; the response is content-identical to any other 403 (no existence oracle; the owning org is never revealed — spec 003 US3.2 parity).
 3. `Some(title)` + `course_exists_in_org(...) = true` → proceed; `title` is available for display (US2 views).
 
+**Outage discipline (N1, Agent A review)**: the provider MUST map outage →
+`Err(Unavailable)` → 503 — never `Ok(None)`; step 1's `None → 404` is only
+valid because an *absent* course returns `None` for everyone, and an outage
+must never be conflated with absence (provider side corrected in b4f3008:
+`find_by_id` returns `Result`; `Ok(None)` = absent, `Err(Unavailable)` =
+outage). The port contract carries this: `Err` from either method is a
+storage outage, not an absence.
+
 Deterministic tests use a fixture impl over in-test course fixtures; at Phase 4
 the host adapts the Catalog repository (its CRUD surface + these two methods)
 to the port. The spec 003 plan mirrors this exact shape in the catalog repo.
@@ -105,8 +113,8 @@ to the port. The spec 003 plan mirrors this exact shape in the catalog repo.
 | column | type | notes |
 |---|---|---|
 | id | UNIQUEIDENTIFIER PK | |
-| learner_id | UNIQUEIDENTIFIER NOT NULL | the enrolling user (no cross-module FK to `dbo.users` — see note) |
-| course_id | UNIQUEIDENTIFIER NOT NULL | |
+| learner_id | UNIQUEIDENTIFIER NOT NULL | the enrolling user — matches 001's `dbo.users.id` (the 001 CAST-at-wire-edge convention) |
+| course_id | NVARCHAR(40) NOT NULL | **1:1 with 003's `dbo.courses.id`** (NEWID string, CAST at the wire edge — 001 convention; no implicit CAST at the edge — plan CR-2, Agent A review) |
 | organization_id | UNIQUEIDENTIFIER NOT NULL | scope column (denormalized; enforced at the app layer) |
 | status | NVARCHAR(20) NOT NULL | `'enrolled' \| 'completed'` |
 | created_at | DATETIME2 NOT NULL | |
@@ -158,10 +166,19 @@ cannot race is not evidence for a race-safety claim). Therefore:
    500, never a silent second row.
 3. **The real proof (gated full-env test, `enrollment_full_env`)**: fires N=8
    concurrent duplicate create-attempts for the same (learner, course) against
-   live MSSQL and asserts exactly ONE row exists and the losers all received
-   the stable `already-enrolled` code. Gated on live services (SKIP is not a
-   pass); the deciding run is Agent B's fresh-container machine (Principle
-   XVI).
+   live MSSQL with **N independent `TiberiusEnrollmentRepo` instances (one
+   connection each)** — `tokio::join!` over them — and asserts exactly ONE
+   row exists and the losers all received the stable `already-enrolled`
+   code. **Why N instances**: a single-client repo (the 001/003
+   `Client`-behind-`Mutex` pattern — a fine teaching-slice choice for normal
+   operations) would serialize 8 joins on its own mutex, so the UNIQUE
+   constraint would never see a real contest and the gate would pass while
+   proving nothing (plan CR-1, Agent A review). The race test needs genuine
+   engine-side concurrency. Gated on live services (SKIP is not a pass); the
+   deciding run is Agent B's fresh-container machine (Principle XVI).
+   The 2627→`AlreadyEnrolled` mapping is an implementation detail (tiberius
+   server-error surface: code 2627 / "unique index" message) — this test
+   IS the verification that the mapping fires (losers' stable code).
 4. The deterministic test keeps its sequential duplicate-rejection assertions
    (logic layer); it is labeled as such in the test name.
 
