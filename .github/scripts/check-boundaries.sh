@@ -30,4 +30,8 @@ for f in crates/catalog crates/enrollment crates/scorm crates/management; do
   fi
 done
 
+if [ "$fail" -eq 0 ]; then
+  echo "boundary check: 4 module crates clean"
+fi
+
 exit $fail

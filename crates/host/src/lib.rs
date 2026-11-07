@@ -243,10 +243,13 @@ pub async fn run_with_stop(
     }
     // CR-2 seam: base manifest + every module's MIGRATIONS (name-ordered).
     // Module manifests land with their slices; the runner is already generic.
-    let manifest: Vec<(&str, &str)> = shared::migrate::MIGRATIONS
+    let mut manifest: Vec<(&str, &str)> = shared::migrate::MIGRATIONS
         .iter()
         .map(|(n, sql)| (*n, *sql))
         .collect();
+    // Spec 003 lane: catalog's own migrations (Module Persistence Seam).
+    manifest.extend(catalog::migrations::MIGRATIONS.iter().map(|(n, sql)| (*n, *sql)));
+    manifest.sort_by(|a, b| a.0.cmp(b.0));
     if let Err(e) = storage.run_migrations(&manifest).await {
         return Err(HostError::Startup(format!("migrations: {e}")));
     }
