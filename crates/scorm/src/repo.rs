@@ -178,9 +178,11 @@ pub enum LaunchGate {
 }
 
 /// The enrollment seam (2-method, host-wired — the 004 `CourseSource`
-/// parity; the host wires the 004 repository adapter at Phase 4, tests use
-/// `DoubleEnrollmentPort`, the honest `UnwiredEnrollmentPort` is the
-/// production stub until then).
+/// parity; Phase 4 wires the 004 repository adapter in the host
+/// (`host::adapters::EnrollmentRepoPort`); tests use
+/// `DoubleEnrollmentPort` — the pre-Phase-4 honest-503 production stub
+/// (`UnwiredEnrollmentPort`) was removed in Phase 4, do-not-restore
+/// ruling on record).
 ///
 /// Outage discipline (004 N1 parity): an outage MUST be `Err(Unavailable)`
 /// → 503 — never `Ok(NotEnrolled)`-as-404/409, never a fake 404/200/

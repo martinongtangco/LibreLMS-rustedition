@@ -98,8 +98,14 @@ ownership. Amended only via PR.
   EnrollmentPort ← 004 repo with idempotent first-wins record_completion)
   + the cross-slice E2E (enroll via 004 → scorm launch → finish passed →
   completion visible in the 004 list) + the all-slice full_env battery
-  (pre-state 4060, post-state across all six migrations).
-  **STATUS (in progress):** `story/phase4-integration` on `e26dcd8` — the
+  (pre-state: DB absent (fresh container) — the 4060 shorthand
+  re-worded per the Phase-4 review ruling; post-state across all six
+  slices = the five non-empty scripts, 006 management being empty by
+  construction).
+  **STATUS: MERGED** as `1d73995 Phase 4: cross-slice integration (#7)`
+  (2026-11-08; parent `e26dcd8`, pre-push parent check passed; ONE-PR
+  structure — single commit `4a1a8d6`, the in-process red-first accepted
+  as the red phase, on record) — the
   real adapters (`crates/host/src/adapters.rs`: `CatalogCourseSource`,
   `EnrollmentRepoPort` — the production wiring in main.rs, the honest stubs
   removed) + the cross-slice E2E (`phase4_e2e.rs`: full HTTP loop with the
@@ -112,4 +118,9 @@ ownership. Amended only via PR.
   with the production wiring, post-state probes) + the 006 CR-1 fix
   (management_full_env (b) order-invariant: delta only on fresh, SET on
   every run). Deciding fresh-container gate green on the branch tip
-  (1.23s real, `applied:` all five, post-state 5/1/1/1/1).
+  (1.23s real, `applied:` all five, post-state 5/1/1/1/1, sqlcmd
+  post-state consistent). Agent A review: 152/152 + clippy -D + fmt +
+  boundary 4/4 on the exact tip (APPROVE, 1 non-blocking doc CR, folded
+  post-merge); post-merge main sanity (Agent A): 152/152 + clippy -D +
+  fmt + boundary 4/4. **THE SPEC PROGRAM 001-006 + INTEGRATION IS
+  COMPLETE.**
