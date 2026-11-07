@@ -70,10 +70,18 @@ Assumptions).
   deleting an organization (204).
 - **FR-009**: The system MUST refuse to delete an organization that still
   has members with 409 `not-empty` (memberships must be removed first —
-  no silent cascade of membership rows).
+  no silent cascade of membership rows). A successful delete
+  **cascade-expires the organization's active sessions** (CR-2, option b:
+  `dbo.sessions` rows for the org are removed as part of the delete — a
+  deleted org cannot hold a live session; this is DML through the module's
+  own repository, so FR-013's no-DDL constraint holds and the
+  `sessions.organization_id` FK is satisfied by construction).
 - **FR-010**: Unknown organization ids MUST yield 404 `not-found`; the
   delete 409 check MUST not reveal whether the id exists to out-of-scope
-  callers (role-gated: a member gets 403 before any id check).
+  callers (role-gated: a member gets 403 before any id check). CR-3 (003
+  US3.2 parity, explicit): user-side operations (re-role / remove) against an
+  **unknown or other-org user id answer 403 `scope` — never 404**; the 404
+  row above applies to organization ids only.
 
 **Acceptance Scenarios**
 
@@ -129,7 +137,10 @@ manifest is empty by construction, documented as such.
   org-scope-gated (FR-005).
 - **Duplicate email arbitration**: the engine's UNIQUE constraint is the
   final arbiter (the 004 PQ-1 discipline); the deterministic duplicate test
-  is LOGIC-LAYER; the real-engine proof rides the gated full-env test.
+  is LOGIC-LAYER; the real-engine proof rides the gated full-env test and
+  MUST use N INDEPENDENT connections (one per concurrent attempt — the 004
+  CR-1 lesson: a shared single-client repo serializes the contest and turns
+  the proof into a formality).
 - **No cross-module dependencies**: user/org data is foundation-owned; this
   module performs DML through its own repository (like 001's auth writes to
   `dbo.sessions`) — no module-to-module coupling, no ports needed in this
