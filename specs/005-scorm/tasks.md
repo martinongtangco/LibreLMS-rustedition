@@ -80,7 +80,7 @@ above — this phase is the real-engine proof.
 
 - [ ] **T016** fmt pass: `cargo fmt` clean across the slice
 - [ ] **T017** Full gate sweep: `cargo test --workspace` (deterministic: doubles + flow + gated-self-skip all green) + `cargo clippy --workspace --all-targets -- -D warnings` + `cargo fmt --check` + boundary check — 100% of the workspace, red-first evidence recorded per battery
-- [ ] **T018** Update `docs/work-split.md` (Phase 3 SCORM status) and push `story/005-scorm`; open the PR (Agent A review — Principle XVI; the deciding full-env run is Agent B's fresh-container machine with the pre/post state probes: pre 4060-fresh, post `schema_migrations` 4 rows + the attempt rows + the completion through the 004 path)
+- [ ] **T018** Update `docs/work-split.md` (Phase 3 SCORM status) and push `story/005-scorm`; open the PR (Agent A review — Principle XVI; the deciding full-env run is Agent B's fresh-container machine with the pre/post state probes: pre 4060-fresh, post `schema_migrations` 5 rows (0001+0002+0003+0005 already on main after both merges + 0006) + the attempt rows + the completion through the 004 path)
 
 **Dependency order**: T001/T002 (parallel) → T003/T004 (parallel) → T005 → T006 → T007/T008 (parallel, RED) → T009 → T010 → T011/T012 (parallel, RED) → T013 → T014/T015 (parallel, RED) → T016 → T017 → T018.
 
