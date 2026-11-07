@@ -10,7 +10,7 @@ const ORG_B: &str = "org-b";
 
 /// The fixture battery (spec SC-002: precision/recall material).
 fn fixture() -> Vec<Course> {
-    let mut c = |id: &str, title: &str, org: &str| Course {
+    let c = |id: &str, title: &str, org: &str| Course {
         id: id.to_string(),
         title: title.to_string(),
         description: String::new(),
@@ -49,10 +49,7 @@ async fn filter_is_case_insensitive_substring_with_full_precision_and_recall() {
     }
     // "go" → the two Go courses; "Rust for LMS (B org)" is in org B and "rust
     // security" contains "rust", not "go" — precision.
-    let hits = repo
-        .list_for(ORG_A, Some("go"))
-        .await
-        .expect("filter go");
+    let hits = repo.list_for(ORG_A, Some("go")).await.expect("filter go");
     assert_eq!(hits.len(), 2, "recall: both Go courses match");
     assert!(
         hits.iter().all(|c| c.title.to_lowercase().contains("go")),

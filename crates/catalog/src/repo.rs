@@ -21,7 +21,10 @@ pub enum CatalogError {
     /// The session's role does not allow the action (403).
     Forbidden,
     /// Invalid input; the message names the offending field (400).
-    Validation { field: &'static str, message: String },
+    Validation {
+        field: &'static str,
+        message: String,
+    },
     /// The system of record is unreachable (503 — never 500, never a silent
     /// empty list).
     Unavailable,
@@ -32,7 +35,11 @@ pub enum CatalogError {
 pub trait CourseRepo: Send + Sync {
     /// List a session organization's courses, optionally filtered by a
     /// case-insensitive substring of the title. Empty results are Ok(…).
-    async fn list_for(&self, org: &str, title_filter: Option<&str>) -> Result<Vec<Course>, CatalogError>;
+    async fn list_for(
+        &self,
+        org: &str,
+        title_filter: Option<&str>,
+    ) -> Result<Vec<Course>, CatalogError>;
 
     /// Get one course; `Scope` if it exists in another org, `NotFound` if absent.
     async fn get(&self, course_id: &str, session_org: &str) -> Result<Course, CatalogError>;
@@ -64,6 +71,9 @@ pub trait CourseRepo: Send + Sync {
 #[derive(Default)]
 pub struct InMemoryCourseRepo {
     courses: Arc<Mutex<HashMap<String, Course>>>,
+    /// Test-only fault injection (the 001 MemorySessionStore pattern): lets the
+    /// deterministic suite exercise the 503 path without a real outage.
+    down: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl InMemoryCourseRepo {
@@ -75,6 +85,15 @@ impl InMemoryCourseRepo {
     pub async fn create_for_test(&self, course: Course) -> Result<(), CatalogError> {
         self.courses.lock().await.insert(course.id.clone(), course);
         Ok(())
+    }
+
+    /// Test-only fault injection for the 503 path (spec 003 FR-008).
+    pub fn set_unavailable_for_test(&self, down: bool) {
+        self.down.store(down, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn is_down(&self) -> bool {
+        self.down.load(std::sync::atomic::Ordering::SeqCst)
     }
 }
 
@@ -124,6 +143,9 @@ impl CourseRepo for InMemoryCourseRepo {
         org: &str,
         title_filter: Option<&str>,
     ) -> Result<Vec<Course>, CatalogError> {
+        if self.is_down() {
+            return Err(CatalogError::Unavailable);
+        }
         let needle = title_filter.map(str::to_lowercase);
         let g = self.courses.lock().await;
         let mut out: Vec<Course> = g
@@ -141,11 +163,11 @@ impl CourseRepo for InMemoryCourseRepo {
     }
 
     async fn get(&self, course_id: &str, session_org: &str) -> Result<Course, CatalogError> {
+        if self.is_down() {
+            return Err(CatalogError::Unavailable);
+        }
         let g = self.courses.lock().await;
-        let course = g
-            .get(course_id)
-            .cloned()
-            .ok_or(CatalogError::NotFound)?;
+        let course = g.get(course_id).cloned().ok_or(CatalogError::NotFound)?;
         scope_check(&course, session_org)?;
         Ok(course)
     }
@@ -156,6 +178,9 @@ impl CourseRepo for InMemoryCourseRepo {
         title: &str,
         description: Option<&str>,
     ) -> Result<Course, CatalogError> {
+        if self.is_down() {
+            return Err(CatalogError::Unavailable);
+        }
         validate_title(title)?;
         if let Some(d) = description {
             validate_description(d)?;
@@ -184,10 +209,11 @@ impl CourseRepo for InMemoryCourseRepo {
         title: Option<&str>,
         description: Option<&str>,
     ) -> Result<Course, CatalogError> {
+        if self.is_down() {
+            return Err(CatalogError::Unavailable);
+        }
         let mut g = self.courses.lock().await;
-        let course = g
-            .get_mut(course_id)
-            .ok_or(CatalogError::NotFound)?;
+        let course = g.get_mut(course_id).ok_or(CatalogError::NotFound)?;
         scope_check(course, session_org)?;
         if let Some(t) = title {
             validate_title(t)?;
@@ -201,10 +227,11 @@ impl CourseRepo for InMemoryCourseRepo {
     }
 
     async fn delete(&self, course_id: &str, session_org: &str) -> Result<(), CatalogError> {
+        if self.is_down() {
+            return Err(CatalogError::Unavailable);
+        }
         let mut g = self.courses.lock().await;
-        let course = g
-            .get(course_id)
-            .ok_or(CatalogError::NotFound)?;
+        let course = g.get(course_id).ok_or(CatalogError::NotFound)?;
         scope_check(course, session_org)?;
         g.remove(course_id);
         Ok(())
@@ -220,13 +247,19 @@ mod tests {
         assert!(validate_title("ok").is_ok());
         assert!(validate_title("").is_err());
         assert!(validate_title("  ").is_err());
-        assert!(validate_title(&"x".repeat(200)).is_ok(), "200 is the boundary — accepted");
+        assert!(
+            validate_title(&"x".repeat(200)).is_ok(),
+            "200 is the boundary — accepted"
+        );
         assert!(validate_title(&"x".repeat(201)).is_err(), "201 rejected");
     }
 
     #[test]
     fn description_boundaries() {
-        assert!(validate_description(&"x".repeat(5_000)).is_ok(), "5,000 accepted");
+        assert!(
+            validate_description(&"x".repeat(5_000)).is_ok(),
+            "5,000 accepted"
+        );
         assert!(
             validate_description(&"x".repeat(5_001)).is_err(),
             "5,001 rejected"

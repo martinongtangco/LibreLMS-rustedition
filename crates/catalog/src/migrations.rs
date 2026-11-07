@@ -5,5 +5,7 @@
 //! manifest-generic runner (spec 001 CR-2).
 
 /// (name, sql) in application order.
-pub const MIGRATIONS: &[(&str, &str)] =
-    &[("0003_catalog", include_str!("../../../migrations/0003_catalog.sql"))];
+pub const MIGRATIONS: &[(&str, &str)] = &[(
+    "0003_catalog",
+    include_str!("../../../migrations/0003_catalog.sql"),
+)];

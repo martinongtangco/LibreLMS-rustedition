@@ -77,10 +77,16 @@ async fn startup_with_valid_config_reports_ok_health() {
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
     let stop = Arc::new(tokio::sync::Notify::new());
     let stop2 = stop.clone();
-    let handle =
-        tokio::spawn(
-            async move { host::run_with_stop(cfg(port), storage, store, Some(stop2)).await },
-        );
+    let handle = tokio::spawn(async move {
+        host::run_with_stop(
+            cfg(port),
+            storage,
+            store,
+            std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            Some(stop2),
+        )
+        .await
+    });
     assert!(
         wait_health_ok(port, Duration::from_secs(10)).await,
         "healthz must be ok within 10s (spec SC-001)"
@@ -106,10 +112,16 @@ async fn degraded_when_session_store_down() {
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(mem_store.clone());
     let stop = Arc::new(tokio::sync::Notify::new());
     let stop2 = stop.clone();
-    let handle =
-        tokio::spawn(
-            async move { host::run_with_stop(cfg(port), storage, store, Some(stop2)).await },
-        );
+    let handle = tokio::spawn(async move {
+        host::run_with_stop(
+            cfg(port),
+            storage,
+            store,
+            std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            Some(stop2),
+        )
+        .await
+    });
     assert!(wait_health_ok(port, Duration::from_secs(10)).await);
     mem_store.set_down(true); // runtime outage (spec US1.4)
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -130,7 +142,14 @@ async fn port_in_use_fails_fast_naming_the_port() {
     let storage: Arc<dyn shared::storage::Storage> = Arc::new(MemoryStorage::new());
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
     let start = Instant::now();
-    let res = host::run_with_stop(cfg(port), storage, store, None).await;
+    let res = host::run_with_stop(
+        cfg(port),
+        storage,
+        store,
+        std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+        None,
+    )
+    .await;
     assert!(
         start.elapsed() < Duration::from_secs(5),
         "fail-fast < 5s (SC-002)"

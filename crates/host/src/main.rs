@@ -42,7 +42,12 @@ async fn main() {
             }
         };
 
-    if let Err(e) = host::run(cfg, storage, store).await {
+    // T018: replace with TiberiusCourseRepo (real engine) — tracked in the
+    // doloop state; the full-environment gate enforces the real wiring.
+    let catalog: std::sync::Arc<dyn catalog::repo::CourseRepo> =
+        std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new());
+
+    if let Err(e) = host::run(cfg, storage, store, catalog).await {
         eprintln!("{e}");
         std::process::exit(1);
     }

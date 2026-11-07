@@ -54,8 +54,25 @@ impl MemoryStorage {
         g.memberships
             .insert(("dev-user".to_string(), "dev-org".to_string()), Role::Admin);
     }
-}
 
+    /// Test-only user creation (Principle XVII: test-created data is allowed).
+    pub fn create_user_for_test(&self, user: contracts::User) {
+        self.inner
+            .lock()
+            .expect("poisoned")
+            .users
+            .insert(user.id.clone(), user);
+    }
+
+    /// Test-only membership upsert (Principle XVII: test-created data is allowed).
+    pub fn set_org_role_for_test(&self, user_id: &str, org_id: &str, role: contracts::Role) {
+        self.inner
+            .lock()
+            .expect("poisoned")
+            .memberships
+            .insert((user_id.to_string(), org_id.to_string()), role);
+    }
+}
 /// Migration scripts (name, sql) — mirrors `migrations/*.sql` for the memory
 /// implementation. The memory "apply" records the script and applies its
 /// semantic effect (schema flag / seed).

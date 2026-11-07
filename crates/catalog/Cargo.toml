@@ -8,5 +8,10 @@ repository.workspace = true
 [dependencies]
 contracts = { path = "../contracts" }
 shared = { path = "../shared" }
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["rt", "macros"] }
 async-trait.workspace = true
+axum.workspace = true
+serde.workspace = true
+futures.workspace = true
+tiberius.workspace = true
+tokio-util = { workspace = true, features = ["compat"] }
