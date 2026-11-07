@@ -20,7 +20,7 @@ observation") and are written first — red, then green.
 
 ## Phase 2: Foundational (blocks all stories)
 
-- [ ] **T003** [P] Define `EnrollmentRepo` trait, `CourseSource` trait + `CourseRef` (the agreed PQ-2 port shape — plan Cross-Slice Contract), and `EnrollmentError` (Scope/Forbidden/NotFound/AlreadyEnrolled/NotEnrolled/Unavailable) in `crates/enrollment/src/repo.rs` with the plan's error→envelope mapping table
+- [ ] **T003** [P] Define `EnrollmentRepo` trait, `CourseSource` trait (the agreed PQ-2 port shape — plan Cross-Slice Contract: the provider's 2-method minimal set + 404/403 decision procedure), and `EnrollmentError` (Scope/Forbidden/NotFound/AlreadyEnrolled/NotEnrolled/Unavailable) in `crates/enrollment/src/repo.rs` with the plan's error→envelope mapping table
 - [ ] **T004** [P] Implement `InMemoryEnrollmentRepo` (deterministic double; the sequential duplicate check is labeled LOGIC-LAYER) + `FixtureCourseSource` in `crates/enrollment/src/memory.rs`
 - [ ] **T005** Implement `TiberiusEnrollmentRepo` in `crates/enrollment/src/mssql.rs`: create (mapping the unique-constraint violation — MSSQL 2627 / tiberius unique-violation — to `AlreadyEnrolled`, never a 500 — PQ-1), list own/org-wide (org-scoped query), complete (INSERT-into-completions so the PK enforces first-completion-wins in the engine), status transition enrolled→completed; `Unavailable` on storage outage
 - [ ] **T006** Wire `enrollment::routes` into the host router (one-line-mount convention, docs 767d690) with the host adapting `FixtureCourseSource` for now; `CourseSource` catalog→port adaptation is a Phase 4 task (this slice adds the adapter SEAM + a test with the fixture, not the catalog wiring)
@@ -52,7 +52,7 @@ unauthenticated → 401; unknown course id → 404 (not 403).
 
 ### Tests (write first, must FAIL)
 
-- [ ] **T010** [P] [US2] `crates/enrollment/tests/repo.rs`: list-own returns only the actor's rows (with course identifier + status via the port's `CourseRef.title`); empty → empty (not an error); org-wide returns all org rows for admin, and member rows of other orgs never appear
+- [ ] **T010** [P] [US2] `crates/enrollment/tests/repo.rs`: list-own returns only the actor's rows (with course identifier + status via the port's `course_title`); empty → empty (not an error); org-wide returns all org rows for admin, and member rows of other orgs never appear
 - [ ] **T011** [P] [US2] `crates/host/tests/enrollment_flow.rs`: `GET /enrollments` — 200 own list for member; `GET /enrollments?scope=org` (or the plan's org-wide endpoint) 200 for admin, 403 `forbidden` for non-admin; 401 without session; org A never sees org B rows (SC-002)
 
 ### Implementation

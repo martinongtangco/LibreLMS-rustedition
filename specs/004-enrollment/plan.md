@@ -33,10 +33,9 @@ in-memory double; real-SQL verification = the gated full-environment test
 No Valkey state (Principle VI: nothing here is high-churn ephemeral).
 
 **Session/Auth**: the spec 001 session mechanism (identity + org scope + role
-via the host auth extractor); resource-level scope check:
-`course.organization_id != session.organization_id → 403 envelope` (no
-existence oracle: out-of-scope → 403, unknown id → 404 — consistent with spec
-003's rule).
+via the host auth extractor); resource-level scope check via the `CourseSource`
+404/403 decision procedure (plan Cross-Slice Contract: out-of-scope → 403,
+unknown id → 404 — consistent with spec 003's no-existence-oracle rule).
 
 **Target Platform**: Linux (machine A) + Windows (machine B, gnu override);
 gates toolchain-agnostic.
@@ -76,29 +75,28 @@ fresh-environment behavior is app-guaranteed (spec 001 CR-G).
 ## Cross-Slice Contract (PQ-2 — agreed with spec 003's plan)
 
 `CourseSource` — a port defined IN the `enrollment` crate (host wires the
-catalog implementation to it at Phase 4; deterministic tests use a fixture
-impl; no catalog-crate dependency):
+catalog repository to it at Phase 4; deterministic tests use a fixture impl;
+no catalog-crate dependency). Defined against the provider's (spec 003)
+minimal set so the Catalog repo exposes it exactly and the host adapts 1:1:
 
 ```rust
-/// A course as the enrollment slice needs it: which org owns it + its title.
-pub struct CourseRef {
-    pub organization_id: String,
-    pub title: String,
-}
 #[async_trait]
 pub trait CourseSource: Send + Sync {
-    /// None = the course does not exist (→ 404-class).
-    /// Some(ref) with ref.organization_id != session org (→ 403-class,
-    /// no existence oracle — indistinguishable from any other 403).
-    async fn get(&self, course_id: &str) -> Result<Option<CourseRef>, EnrollmentError>;
+    /// `None` = the course does not exist (→ 404-class).
+    async fn course_title(&self, course_id: &str) -> Result<Option<String>, EnrollmentError>;
+    /// `true` only if the course exists AND belongs to `org_id`.
+    async fn course_exists_in_org(&self, course_id: &str, org_id: &str) -> Result<bool, EnrollmentError>;
 }
 ```
 
-One call covers the minimal set (existence → 404 check; ownership → 403 check;
-title → display). Satisfies the spec 003 plan's proposed surface
-(`exists_in_org = get().map(|r| r.organization_id == org).unwrap_or(false)`;
-`title = get().map(|r| r.title)`); spec 003's catalog repository exposes
-exactly `get`, the host adapts catalog→port.
+**404/403 decision procedure** (enrollment logic, per call site):
+1. `course_title(id) = None` → **404** `not-found` (unknown course).
+2. `course_title(id) = Some(_)` + `course_exists_in_org(id, session_org) = false` → **403** `scope` — out-of-scope; the response is content-identical to any other 403 (no existence oracle; the owning org is never revealed — spec 003 US3.2 parity).
+3. `Some(title)` + `course_exists_in_org(...) = true` → proceed; `title` is available for display (US2 views).
+
+Deterministic tests use a fixture impl over in-test course fixtures; at Phase 4
+the host adapts the Catalog repository (its CRUD surface + these two methods)
+to the port. The spec 003 plan mirrors this exact shape in the catalog repo.
 
 ## Data Model
 
