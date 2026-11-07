@@ -31,7 +31,11 @@ check = `cargo test -p <crate> && cargo clippy -p <crate> --all-targets -- -D wa
 full-environment (MSSQL/Valkey) integration suite runs on a machine with the services or
 in CI (Principle XIII/XVI)
 
-**Target Platform**: Linux (dev machine A) and Windows MSVC (dev machine B); no
+**Target Platform**: Linux (dev machine A) and Windows (dev machine B — per-directory
+rustup override `1.99.1-x86_64-pc-windows-gnu`; MSVC is unusable on that box: partial
+VS 2022/BuildTools installs, missing toolset lib/x64, no Win10 SDK. The gates —
+build/test/clippy/fmt — are toolchain-agnostic, and the `1.99.1` pin in
+`rust-toolchain.toml` is honored by the override.) ; no
 cross-compilation in this slice
 
 **Project Type**: web service (modular monolith — ADR 0001)
@@ -65,6 +69,25 @@ sessions; 1 seeder user; no business behavior
 Post-design re-check (after Phase 1 artifacts): still PASS — the in-memory storage
 implementation is a test double behind the `Storage` trait, not a new storage system
 (Principle VI respected: nothing durable lives outside MSSQL).
+
+## Module Persistence Seam (decided at foundation baseline — CR-2)
+
+Module slices persist their own rows and must do so without new shared surface (shared
+is read-only ground truth after the foundation merge):
+
+1. Each module crate owns: (a) a **domain repository trait defined in the module crate**,
+   (b) the real `tiberius` implementation against its own `dbo.*` rows, (c) an
+   **in-memory test double** in the same crate, (d) its **migrations `NNNN_*.sql`**
+   exposed as `pub const MIGRATIONS: &[(&str, &str)]`.
+2. The startup migration runner is **manifest-generic**: `Storage::run_migrations` takes
+   a manifest; the host concatenates `shared::migrate::MIGRATIONS` with every module's
+   `MIGRATIONS` (name-ordered). This signature change lands in the foundation, pre-merge.
+3. **Deterministic tests use the in-memory doubles.** Real-SQL verification runs through
+   **gated full-environment tests** (the `full_env.rs` pattern, per module), executed on
+   Agent B's Docker machine (Principle XIII) and in CI when services are added.
+4. A sqlx SQLite substitute is **not available under ADR 0003** (tiberius is MSSQL-only;
+   sqlx 0.8 has no MSSQL feature) — the repository pattern replaces it. No new shared
+   surface is introduced.
 
 ## Project Structure
 
