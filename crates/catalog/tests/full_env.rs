@@ -116,7 +116,7 @@ async fn real_engine_full_crud() {
     // 5c. CR-4: 5000-char boundary — proves the NVARCHAR(MAX) column AND the
     // tiberius >4000-char wire path in one assert (Rust strings are uncapped,
     // so no T-SQL REPLICATE cap gotcha applies here).
-    let big: String = std::iter::repeat('a').take(5_000).collect();
+    let big: String = "a".repeat(5_000);
     let bigc = repo
         .create(ORG, "Boundary course", Some(&big))
         .await
