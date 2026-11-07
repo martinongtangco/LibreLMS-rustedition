@@ -34,25 +34,25 @@ shared surface (shared frozen post-001); no secrets in logs (spec 001 FR-009).
 
 *Gate: pass/fail against the constitution (v1.0.1).*
 
-| Principle | Verdict |
+| Principle (v1.0.1, cited) | Verdict |
 |---|---|
-| I. Spec-Driven Development | **PASS** — spec + checklist committed on main before planning; tasks trace to FRs. |
-| II. Simplicity / YAGNI | **PASS** — one table, one repository trait, no pagination/caching/locking layer; last-write-wins. |
-| III. Module Boundaries via Contracts | **PASS** — catalog consumes `contracts` + `shared` only; the repository trait lives in the `catalog` crate; boundary check extended negative-test style. |
-| IV. ADRs for decisions | **PASS** — no new architecture decisions beyond the spec 001 seam; any deviation gets an ADR. |
-| V. Parallel Two-Agent Protocol | **PASS** — Catalog = Agent A lane; `story/003-course-catalog` branch; planning on main. |
-| VI. MSSQL system of record / Valkey ephemeral | **PASS** — courses persist to MSSQL only; no catalog state in Valkey. |
-| VII. Tests First | **PASS** — tasks are red-first (double + repository + HTTP behavior before implementation). |
-| VIII. Deterministic Gates | **PASS** — `cargo test -p catalog` + host route tests are container-free; full-env test gated. |
-| IX. Fail-Fast Configuration | **PASS** — reuses spec 001 `Config`. |
-| X. Structured Logging, No Secrets | **PASS** — reuses spec 001 error envelopes; catalog error paths name fields, not backends. |
-| XI. Migrations Idempotent + Bookkept | **PASS** — `0003_catalog.sql` through the manifest-generic runner; idempotency test on the real engine in the full-env run. |
-| XII. Graceful Shutdown | **PASS** — no new long-lived state beyond the repository (no pool layer). |
-| XIII. Full-Environment Verification | **PASS** — `catalog_full_env` gated test; Agent B's fresh-container run is the deciding one. |
-| XIV. Spec/Plan/Task Traceability | **PASS** — FR-001..FR-009 → tasks; SC-001..SC-005 → acceptance tests. |
-| XV. Spec-Kit on Main, Code on Branches | **PASS** — spec/plan/tasks on main; code on `story/003-course-catalog`. |
-| XVI. Cross-Agent Review for Merge | **PASS** — Agent B reviews spec/plan then the PR; author does not self-approve. |
-| XVII. No Faked Passes | **PASS** — full-env test self-skips visibly when env absent; the deciding run must be a real run (Agent B). |
+| I. Modular Monolith, Not Microservices (Yet) | **PASS** — one module crate + host wiring; no service split. |
+| II. Clean Architecture, Applied Simply | **PASS** — thin slice: one table, one repo trait, no pagination/caching/locking layer. |
+| III. Module Boundaries Are Compiled, Not Conventional | **PASS** — `catalog` consumes `contracts` + `shared` only; boundary check negative-tested (T019). |
+| IV. Human-Legible AI-Authored Code | **PASS** — small named fns, doc comments on error mapping, no magic values beyond named consts. |
+| V. Parallel Two-Agent Protocol (NON-NEGOTIABLE) | **PASS** — Catalog = Agent A lane; `story/003-course-catalog`; planning on main. |
+| VI. Polyglot Storage With a Reason, Not by Default | **PASS** — catalog data in MSSQL only (the reason: system of record); no Valkey use. |
+| VII. Spec-Driven, Sliced Thin | **PASS** — spec + checklist on main before planning; tasks trace to FRs. |
+| VIII. Branching Discipline | **PASS** — code on `story/003-course-catalog`; docs on main only. |
+| IX. Plan On Main Only | **PASS** — spec/plan/tasks committed on main. |
+| X. No Ad-Hoc Fixes — Document Before You Code | **PASS** — no decisions outside spec/plan; any deviation gets an ADR first. |
+| XI. Two-Machine Parallelism | **PASS** — gates green on machine A (Linux) and machine B (Windows gnu override); full-env decisive on B. |
+| XII. Return To Main After Implementation | **PASS** — squash-merge on approval; both agents pull before next slice. |
+| XIII. Verification Before Claim | **PASS** — no "done" claim before full gate green; full-env must be a real run (agent B). |
+| XIV. Bounded Retry — Every Loop Has a Ceiling | **PASS** — doloop state file with iteration ceiling (spec 001 ran 6 cycles, bounded). |
+| XV. Triage Before Retry | **PASS** — state.md triage entry before each retry (spec 001 pattern). |
+| XVI. Cross-Agent Review for Merge (NON-NEGOTIABLE) | **PASS** — Agent B reviews spec/plan (done: approved w/ 3 CRs) then the PR; no self-approval. |
+| XVII. Verify Against a Disposable Environment | **PASS** — fresh containers (`docker compose down && up`) are the deciding run; SKIP is not a pass. |
 | XVIII. Rust Hygiene | **PASS** — no `unwrap`/`expect` outside tests; clippy `-D warnings`; fmt; boundary script. |
 
 **Result: PASS (18/18)** — no amendments required.
@@ -76,6 +76,12 @@ tests/catalog_full_env.rs        # gated: real tiberius repo + migrations on liv
 ```
 
 **Structure Type**: single module crate + host wiring (modular monolith, ADR 0001).
+
+**Host mount pattern (two-slice coordination, Agent B heads-up)**: each slice
+mounts via its own route file exposed from the module crate plus a **one-line
+mount** in `crates/host/src/lib.rs`; slices rebase before pushing so the host
+file is never simultaneously edited. Catalog's one-liner:
+`router.merge(catalog::routes(state))`.
 
 ## Data Model
 

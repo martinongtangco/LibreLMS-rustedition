@@ -16,7 +16,9 @@ An authenticated member of an organization signs in and opens the catalog. They 
 
 **Why this priority**: Without a browsable, scoped catalog, no downstream feature (enrollment, learning, SCORM) has anything to act on. This is the smallest independently valuable slice of the Catalog lane.
 
-**Independent Test**: Sign in as the seeded development member (spec 001), open the catalog, and verify: the list shows exactly the courses belonging to the session's organization; typing a title substring filters the list; a member from a different (hypothetical) organization sees zero of these courses.
+**Independent Test**: Sign in as a development member (deterministic: a fixture
+member in the test's double; full-env: a test-created user row — Principle XVII
+permits test-created data), open the catalog, and verify: the list shows exactly the courses belonging to the session's organization; typing a title substring filters the list; a member from a different (hypothetical) organization sees zero of these courses.
 
 **Acceptance Scenarios**:
 
@@ -107,4 +109,7 @@ Every catalog action honors the session's organization scope and role: members m
 - Read access requires an authenticated, in-scope session (spec 001); there is no anonymous catalog in this slice.
 - The list is returned fully (no pagination in this slice); the 1,000-course bound of SC-001 is the performance assumption that later slices may revisit.
 - Concurrency is last-write-wins (no optimistic locking) at this scale.
+- Deleting a course with existing enrollments (spec 004 cross-lane interaction):
+  the enrollments persist; dangling-reference handling is a Phase 4 integration
+  decision (spec 004 assumes the same).
 - Deterministic tests use the in-crate repository trait + in-memory double pattern (spec 001 Module Persistence Seam); real-SQL verification runs through the gated full-environment test pattern, exercised on Agent B's machine per Principle XIII/XVI.
