@@ -92,7 +92,16 @@ async fn boot(
             .await
             .expect("establish");
     tokio::spawn(async move {
-        host::run_with_stop(AppConfig::valid(port), storage, store, repo, source, None).await
+        host::run_with_stop(
+            AppConfig::valid(port),
+            storage,
+            store,
+            std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            repo,
+            source,
+            None,
+        )
+        .await
     });
     assert!(wait_health_ok(port).await, "serving");
     token

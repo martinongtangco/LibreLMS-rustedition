@@ -373,7 +373,16 @@ pub async fn run(
     enrollment_repo: Arc<dyn enrollment::repo::EnrollmentRepo>,
     course_source: Arc<dyn enrollment::repo::CourseSource>,
 ) -> Result<(), HostError> {
-    run_with_stop(cfg, storage, store, catalog_repo, enrollment_repo, course_source, None).await
+    run_with_stop(
+        cfg,
+        storage,
+        store,
+        catalog_repo,
+        enrollment_repo,
+        course_source,
+        None,
+    )
+    .await
 }
 
 #[cfg(test)]
