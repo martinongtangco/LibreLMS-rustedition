@@ -25,9 +25,7 @@ fn cfg(port: u16) -> shared::Config {
 /// Minimal HTTP/1.1 GET via tokio (no extra http client — Principle XVIII).
 async fn get(url: &str, path: &str) -> Option<(u16, String)> {
     let addr = url.trim_start_matches("http://");
-    let mut stream = tokio::net::TcpStream::connect(addr)
-        .await
-        .ok()?;
+    let mut stream = tokio::net::TcpStream::connect(addr).await.ok()?;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     let req = format!("GET {path} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n");
     stream.write_all(req.as_bytes()).await.ok()?;
@@ -79,9 +77,10 @@ async fn startup_with_valid_config_reports_ok_health() {
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
     let stop = Arc::new(tokio::sync::Notify::new());
     let stop2 = stop.clone();
-    let handle = tokio::spawn(async move {
-        host::run_with_stop(cfg(port), storage, store, Some(stop2)).await
-    });
+    let handle =
+        tokio::spawn(
+            async move { host::run_with_stop(cfg(port), storage, store, Some(stop2)).await },
+        );
     assert!(
         wait_health_ok(port, Duration::from_secs(10)).await,
         "healthz must be ok within 10s (spec SC-001)"
@@ -107,9 +106,10 @@ async fn degraded_when_session_store_down() {
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(mem_store.clone());
     let stop = Arc::new(tokio::sync::Notify::new());
     let stop2 = stop.clone();
-    let handle = tokio::spawn(async move {
-        host::run_with_stop(cfg(port), storage, store, Some(stop2)).await
-    });
+    let handle =
+        tokio::spawn(
+            async move { host::run_with_stop(cfg(port), storage, store, Some(stop2)).await },
+        );
     assert!(wait_health_ok(port, Duration::from_secs(10)).await);
     mem_store.set_down(true); // runtime outage (spec US1.4)
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -131,7 +131,10 @@ async fn port_in_use_fails_fast_naming_the_port() {
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
     let start = Instant::now();
     let res = host::run_with_stop(cfg(port), storage, store, None).await;
-    assert!(start.elapsed() < Duration::from_secs(5), "fail-fast < 5s (SC-002)");
+    assert!(
+        start.elapsed() < Duration::from_secs(5),
+        "fail-fast < 5s (SC-002)"
+    );
     let msg = format!("{}", res.expect_err("must fail"));
     assert!(msg.contains(&port.to_string()), "names the port: {msg}");
     drop(holder);

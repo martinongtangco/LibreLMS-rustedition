@@ -9,27 +9,18 @@ cd "$(dirname "$0")/../.."
 
 fail=0
 
-# 1) Crate-level dependency graph (cargo metadata).
-metafile="$(mktemp)"
-cargo metadata --format-version 1 --no-deps > "$metafile" 2>/dev/null
-python3 - "$metafile" <<'PY'
-import json, sys
-meta = json.load(open(sys.argv[1]))
-modules = {"catalog", "enrollment", "scorm", "management"}
-by_name = {p["name"]: p for p in meta["packages"]}
-bad = []
-for name in modules:
-    pkg = by_name[name]
-    for dep in pkg["dependencies"]:
-        target = dep["name"]
-        if target in modules and target != name:
-            bad.append(f"{name} -> {target}")
-if bad:
-    print("BOUNDARY VIOLATION(S): " + ", ".join(bad))
-    sys.exit(1)
-print(f"boundary check: {len(modules)} module crates clean")
-PY
-rm -f "$metafile"
+# 1) Manifest-level dependency scan (deterministic, no cargo needed).
+# NOTE: `cargo metadata --no-deps` does not enumerate direct dependencies —
+# a manifest scan is the authoritative check for this rule (T022 finding).
+for m in catalog enrollment scorm management; do
+  for other in catalog enrollment scorm management; do
+    if [ "$m" = "$other" ]; then continue; fi
+    if grep -E "^${other}[[:space:]]*=" "crates/$m/Cargo.toml" 2>/dev/null; then
+      echo "BOUNDARY VIOLATION: $m -> $other"
+      fail=1
+    fi
+  done
+done
 
 # 2) No module crate exposes cross-module re-exports or `include!` of another module.
 for f in crates/catalog crates/enrollment crates/scorm crates/management; do

@@ -60,13 +60,13 @@ observation") and are written first — red, then green.
 
 ### Tests (write first, must FAIL)
 
-- [ ] T020 [P] [US2] Boundary negative test in `tests/boundary.rs` (or a script target): a scratch dependency `catalog → enrollment` makes `check-boundaries.sh` exit non-zero naming the pair; clean tree exits 0 (SC-003)
-- [ ] T021 [P] [US2] Migration idempotency test in `crates/shared/tests/migrate.rs`: apply all `migrations/` twice against a fresh `MemoryStorage` DB → second apply is a no-op, bookkeeping rows match checksums
+- [x] T020 [P] [US2] Boundary negative test in `tests/boundary.rs` (or a script target): a scratch dependency `catalog → enrollment` makes `check-boundaries.sh` exit non-zero naming the pair; clean tree exits 0 (SC-003)
+- [x] T021 [P] [US2] Migration idempotency test in `crates/shared/tests/migrate.rs`: apply all `migrations/` twice against a fresh `MemoryStorage` DB → second apply is a no-op, bookkeeping rows match checksums
 
 ### Implementation
 
-- [ ] T022 [US2] Harden `.github/scripts/check-boundaries.sh` if the negative test (T020) exposes gaps (e.g. path-deps / `path =` entries)
-- [ ] T023 [US2] Full-environment integration test in `tests/full_env.rs` (gated: skipped — not faked — when `DATABASE_URL` absent; runs migrations + healthz against live MSSQL/Valkey)
+- [x] T022 [US2] Harden `.github/scripts/check-boundaries.sh` if the negative test (T020) exposes gaps (e.g. path-deps / `path =` entries)
+- [x] T023 [US2] Full-environment integration test in `tests/full_env.rs` (gated: skipped — not faked — when `DATABASE_URL` absent; runs migrations + healthz against live MSSQL/Valkey)
 
 **Checkpoint**: `check-boundaries.sh` proves negative detection; migrations idempotent on fresh DB
 

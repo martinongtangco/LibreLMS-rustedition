@@ -28,9 +28,10 @@ async fn stop_signal_drains_and_exits_within_10s() {
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
     let stop = Arc::new(tokio::sync::Notify::new());
     let stop2 = stop.clone();
-    let handle = tokio::spawn(async move {
-        host::run_with_stop(cfg(port), storage, store, Some(stop2)).await
-    });
+    let handle =
+        tokio::spawn(
+            async move { host::run_with_stop(cfg(port), storage, store, Some(stop2)).await },
+        );
 
     // Wait until it is serving (so the drain path is actually exercised).
     for _ in 0..200 {

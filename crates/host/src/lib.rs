@@ -18,13 +18,6 @@ use tracing::{info, warn};
 /// A 404 page for unknown routes (spec edge case: plain, non-leaky body).
 const NOT_FOUND_BODY: &str = "404 Not Found\n";
 
-/// Unified error envelope (contracts/api.md).
-#[derive(Debug, serde::Serialize)]
-struct ErrorBody {
-    error: &'static str,
-    message: String,
-}
-
 /// Startup/execution failures. `Startup` messages name the offending item
 /// (fail-fast, spec FR-001 / SC-002) — never a stack trace.
 #[derive(Debug)]
@@ -94,9 +87,7 @@ async fn home(State(s): State<AppState>) -> axum::response::Response {
 }
 
 /// Unknown routes: plain, non-leaky 404 (spec edge case).
-async fn not_found(
-    _req: axum::extract::Request,
-) -> (axum::http::StatusCode, &'static str) {
+async fn not_found(_req: axum::extract::Request) -> (axum::http::StatusCode, &'static str) {
     (axum::http::StatusCode::NOT_FOUND, NOT_FOUND_BODY)
 }
 
@@ -193,7 +184,10 @@ pub async fn run_with_stop(
         }
     };
 
-    match axum::serve(listener, router).with_graceful_shutdown(shutdown).await {
+    match axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown)
+        .await
+    {
         Ok(()) => {
             info!("graceful shutdown complete");
             Ok(())

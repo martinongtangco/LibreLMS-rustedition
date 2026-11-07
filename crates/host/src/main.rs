@@ -13,8 +13,7 @@ async fn main() {
     // only backend error text).
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 
@@ -26,24 +25,22 @@ async fn main() {
         }
     };
 
-    let storage: Arc<dyn shared::storage::Storage> = match TiberiusStorage::connect(&cfg.database_url)
-        .await
-    {
-        Ok(s) => Arc::new(s),
-        Err(e) => {
-            eprintln!("startup failed: DATABASE_URL backend: {e}");
-            std::process::exit(1);
-        }
-    };
-    let store: Arc<dyn shared::session::SessionStore> = match ValkeySessionStore::connect(&cfg.valkey_url)
-        .await
-    {
-        Ok(s) => Arc::new(s),
-        Err(e) => {
-            eprintln!("startup failed: VALKEY_URL backend: {e}");
-            std::process::exit(1);
-        }
-    };
+    let storage: Arc<dyn shared::storage::Storage> =
+        match TiberiusStorage::connect(&cfg.database_url).await {
+            Ok(s) => Arc::new(s),
+            Err(e) => {
+                eprintln!("startup failed: DATABASE_URL backend: {e}");
+                std::process::exit(1);
+            }
+        };
+    let store: Arc<dyn shared::session::SessionStore> =
+        match ValkeySessionStore::connect(&cfg.valkey_url).await {
+            Ok(s) => Arc::new(s),
+            Err(e) => {
+                eprintln!("startup failed: VALKEY_URL backend: {e}");
+                std::process::exit(1);
+            }
+        };
 
     if let Err(e) = host::run(cfg, storage, store).await {
         eprintln!("{e}");
