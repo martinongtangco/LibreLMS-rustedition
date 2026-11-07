@@ -39,17 +39,17 @@ observation") and are written first — red, then green.
 
 ### Tests (write first, must FAIL)
 
-- [ ] T012 [P] [US1] Lifecycle tests in `crates/host/tests/lifecycle.rs`: startup-with-valid-config → `/healthz` 200 ok (MemoryStorage + MemorySessionStore); degraded-when-session-store-down → 503 `degraded`; port-in-use → fail-fast naming the port
-- [ ] T013 [P] [US1] Fail-fast tests in `crates/host/tests/failfast.rs`: each of the 3 missing-`*_URL`/config variants exits < 5 s, non-zero, message names the item (SC-002)
-- [ ] T014 [P] [US1] Graceful shutdown test in `crates/host/tests/shutdown.rs`: signal → stops accepting, exits ≤ 10 s
+- [x] T012 [P] [US1] Lifecycle tests in `crates/host/tests/lifecycle.rs`: startup-with-valid-config → `/healthz` 200 ok (MemoryStorage + MemorySessionStore); degraded-when-session-store-down → 503 `degraded`; port-in-use → fail-fast naming the port
+- [x] T013 [P] [US1] Fail-fast tests in `crates/host/tests/failfast.rs`: each of the 3 missing-`*_URL`/config variants exits < 5 s, non-zero, message names the item (SC-002)
+- [x] T014 [P] [US1] Graceful shutdown test in `crates/host/tests/shutdown.rs`: signal → stops accepting, exits ≤ 10 s
 
 ### Implementation
 
-- [ ] T015 [US1] Implement `crates/host/src/error.rs`: error envelope `{"error","message"}`, mapping 404/401/403/503, no stack traces/internal paths (contracts/api.md)
-- [ ] T016 [US1] Implement `crates/host/src/health.rs`: `GET /healthz` JSON per contracts/api.md, no auth
-- [ ] T017 [US1] Implement `crates/host/src/pages/mod.rs`: askama base layout + home page, `GET /` 200 public (R3)
-- [ ] T018 [US1] Wire `crates/host/src/main.rs`: config → storage/session/migrate startup → axum router → `tokio::signal` graceful shutdown (R7); unknown route → 404 envelope
-- [ ] T019 [US1] Structured logging in `main.rs` (startup/shutdown/error, tracing-subscriber; secrets redacted — FR-009)
+- [x] T015 [US1] Implement `crates/host/src/error.rs`: error envelope `{"error","message"}`, mapping 404/401/403/503, no stack traces/internal paths (contracts/api.md)
+- [x] T016 [US1] Implement `crates/host/src/health.rs`: `GET /healthz` JSON per contracts/api.md, no auth
+- [x] T017 [US1] Implement `crates/host/src/pages/mod.rs`: askama base layout + home page, `GET /` 200 public (R3)
+- [x] T018 [US1] Wire `crates/host/src/main.rs`: config → storage/session/migrate startup → axum router → `tokio::signal` graceful shutdown (R7); unknown route → 404 envelope
+- [x] T019 [US1] Structured logging in `main.rs` (startup/shutdown/error, tracing-subscriber; secrets redacted — FR-009)
 
 **Checkpoint**: US1 independently functional — `cargo test -p host` green, quickstart §2–§3 validated
 

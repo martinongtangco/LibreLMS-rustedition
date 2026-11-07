@@ -14,7 +14,7 @@ struct Entry {
     expires_at: i64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MemorySessionStore {
     inner: std::sync::Arc<Mutex<Inner>>,
 }
