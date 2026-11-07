@@ -95,7 +95,7 @@ async fn boot(
             theme: "default".into(),
         });
     }
-    s.set_org_role_for_test(user_id, ORG, role.clone());
+    s.set_org_role_for_test(user_id, ORG, *role);
     let storage: Arc<dyn shared::storage::Storage> = Arc::new(s);
     let store: Arc<dyn shared::session::SessionStore> = Arc::new(MemorySessionStore::new());
     let mut rng = rand::rngs::StdRng::seed_from_u64(port as u64);
