@@ -89,10 +89,64 @@ fn unix_ts_to_sql(secs: i64) -> String {
     format!("{y:04}-{mo:02}-{d:02} {h:02}:{m:02}:{s:02}")
 }
 
+/// CR-G: `IF DB_ID(...) IS NULL CREATE DATABASE` against `master`, so a
+/// bare MSSQL (no pre-created DB) works. The db name is validated against
+/// a conservative charset before being inlined (no parameterizable DDL).
+#[allow(clippy::too_many_arguments)]
+async fn ensure_database(
+    user: &str,
+    pass: &str,
+    host: &str,
+    port: u16,
+    db: &str,
+    encrypt: bool,
+) -> Result<(), StorageError> {
+    if !db
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
+    {
+        return Err(StorageError::Unavailable(format!(
+            "unsafe database name in DATABASE_URL: {db}"
+        )));
+    }
+    let mut config = Config::new();
+    config.database("master");
+    config.authentication(AuthMethod::sql_server(user, pass));
+    config.encryption(if encrypt {
+        EncryptionLevel::On
+    } else {
+        EncryptionLevel::NotSupported
+    });
+    if encrypt {
+        config.trust_cert();
+    }
+    let tcp = TcpStream::connect((host, port))
+        .await
+        .map_err(|e| StorageError::Unavailable(format!("mssql tcp (bootstrap): {e}")))?;
+    tcp.set_nodelay(true)
+        .map_err(|e| StorageError::Unavailable(format!("mssql nodelay (bootstrap): {e}")))?;
+    let mut client = Client::connect(config, tcp.compat_write())
+        .await
+        .map_err(|e| StorageError::Unavailable(format!("mssql connect (bootstrap): {e}")))?;
+    client
+        .execute(
+            &format!("IF DB_ID(N'{db}') IS NULL CREATE DATABASE [{db}]"),
+            &[],
+        )
+        .await
+        .map_err(|e| StorageError::Unavailable(format!("mssql bootstrap: {e}")))?;
+    // Client drops here; the real client opens on `db`.
+    Ok(())
+}
+
 impl TiberiusStorage {
     pub async fn connect(url: &str) -> Result<Self, StorageError> {
         let (user, port, host, db, pass, encrypt) =
             parse_database_url(url).map_err(StorageError::Unavailable)?;
+        // CR-G (spec SC-001): a fresh environment + valid configuration must
+        // start — the app bootstraps its own database (belt: compose sets
+        // MSSQL_DATABASE as well).
+        ensure_database(&user, &pass, &host, port, &db, encrypt).await?;
         let mut config = Config::new();
         config.database(&db);
         config.authentication(AuthMethod::sql_server(user, pass));
@@ -205,17 +259,13 @@ impl Storage for TiberiusStorage {
             if already > 0 {
                 continue; // idempotent (research R1)
             }
-            let stmts: Vec<&str> = sql
-                .split(';')
-                .map(|s| s.trim())
-                .filter(|s| !s.is_empty())
-                .collect();
-            for stmt in stmts {
-                client
-                    .execute(stmt, &[])
-                    .await
-                    .map_err(|e| StorageError::Unavailable(format!("mssql migrate {name}: {e}")))?;
-            }
+            // CR-E: the WHOLE script is one batch — naive ';' splitting severs
+            // T-SQL batches (IF/DECLARE...END) and breaks any string or comment
+            // containing ';'.
+            client
+                .execute(sql, &[])
+                .await
+                .map_err(|e| StorageError::Unavailable(format!("mssql migrate {name}: {e}")))?;
             let sum = checksum(sql);
             client
                 .execute(
