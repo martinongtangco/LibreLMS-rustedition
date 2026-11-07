@@ -149,8 +149,8 @@ verify the rejection with the original record unchanged.
   or complete enrollments tied to organization B, in either direction.
 - **FR-004**: The system MUST allow a member to list their own enrollments
   (course identifier + status) and an organization admin to list the
-  organization's enrollments; the member view MUST NOT be accessible to
-  non-admins. Both views MUST be organization-scoped.
+  organization's enrollments; the organization-wide view MUST NOT be
+  accessible to non-admins. Both views MUST be organization-scoped.
 - **FR-005**: The system MUST allow completion to be recorded for an enrollment
   with status "enrolled", transitioning it to "completed" and persisting a
   completion record with a timestamp.
