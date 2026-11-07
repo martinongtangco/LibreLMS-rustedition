@@ -1,0 +1,30 @@
+# Authoritative gate run (constitution Principle XIII / Development Workflow).
+# Clean checkout, all gates, boundary check (Principle III).
+# NOTE: MSSQL/Valkey service containers are added here when the full-environment
+# integration suite lands (Phase 4) — until then CI runs the deterministic subset.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust@v1
+        with:
+          rust-version: stable
+          components: rustfmt, clippy
+      - name: fmt
+        run: cargo fmt --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: build
+        run: cargo build --workspace
+      - name: test
+        run: cargo test --workspace
+      - name: module-boundary check (Principle III)
+        run: bash .github/scripts/check-boundaries.sh
