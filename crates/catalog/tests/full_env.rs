@@ -133,10 +133,10 @@ async fn real_engine_full_crud() {
     repo.delete(&bigc.id, ORG).await.expect("delete boundary");
 
     // 6. Delete + confirm absent (FR-005).
-    repo.delete(&created.id, "org-full-env")
+    repo.delete(&created.id, ORG)
         .await
         .expect("delete");
-    let after = repo.get(&created.id, "org-full-env").await;
+    let after = repo.get(&created.id, ORG).await;
     assert!(
         matches!(after, Err(CatalogError::NotFound)),
         "deleted course is NotFound, got {after:?}"
