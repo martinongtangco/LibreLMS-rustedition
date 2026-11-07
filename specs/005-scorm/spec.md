@@ -25,7 +25,10 @@ frozen `contracts` placeholder.
 enrolled in course C of O) to launch a SCORM attempt for C (LMSInitialize),
 returning 200 with the attempt state. Launch is **idempotent per
 (session, course)**: a second launch in the same session resumes the
-existing attempt — no second attempt is ever created. Concurrent launches of
+existing attempt — no second attempt is ever created. The launch gate
+(FR-002) runs **before** the idempotent resume: a re-launch of a
+completed enrollment is 409 `already-completed` (US1.2), never a resume of
+the final attempt. Concurrent launches of
 the same (session, course) are arbitrated by the engine's UNIQUE constraint:
 exactly one attempt row exists, the losing inserter reads the winner's row
 and proceeds with it (200, never a 409, never a 500, never a second row —
@@ -60,7 +63,11 @@ Values outside the subset are rejected with 400 naming the element.
 **FR-005**: LMSCommit MUST persist the committed state (state,
 suspend_data, score_raw, session_time) to the system of record
 (`dbo.scorm_attempts`); the bag remains live in the session store.
-LMSFinish MUST finalize the attempt: `passed`/`completed` final states drive
+LMSFinish MUST act as an **implicit final LMSCommit** — the bag at finish
+time is persisted (state, suspend_data, score_raw, session_time) before
+finalization; a Finish with no prior Commit is the common path (content may
+never commit). LMSFinish MUST then finalize the attempt: `passed`/
+`completed` final states drive
 the 004 `enrolled → completed` transition (first completion wins; the
 original `completed_at` is preserved unchanged — the 004 engine's
 `dbo.completions` PK guarantee, consumed through the port) and persist the
