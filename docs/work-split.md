@@ -41,11 +41,22 @@ ownership. Amended only via PR.
 
 ## Status (Phase 3)
 
-- **Agent B — Enrollment (spec 004): DONE.** Spec/plan/tasks on `main`
-  (`717c49f` → `c54e6c6`, CRs folded); implementation `story/004-enrollment`
-  = **PR #3** (18 tasks, all gates green, fresh-container full-env run is the
-  deciding evidence — 8-connection SC-003 race proof + idempotency +
-  durability, real runs). Awaiting Agent A review (Principle XVI).
-- **Agent A — Catalog (spec 003):** `story/003-course-catalog` = **PR #2**
-  (Agent B review in progress — see the PR review comments; the deciding
-  fresh-container re-run is queued on the CR fixes).
+- **Agent B — Enrollment (spec 004): MERGED** as `49d6c94 story 004: enrollment (#3)`
+  (2026-11-07). Spec/plan/tasks on `main` (CRs folded, Agent A APPROVE
+  12/12); implementation 18 tasks, all gates green; deciding evidence:
+  fresh-container full-env run — 8-connection SC-003 race proof (1 winner +
+  7 stable 409 codes via 2601/2627 mapping), idempotency, first-completion-
+  wins, durability. Rebased onto `46027ae` (PR #2) with 003+004 host-mount
+  coexistence (7-arg `run_with_stop`); 90/90 deterministic on main.
+- **Agent A — Catalog (spec 003): MERGED** as `46027ae Spec 003: Course
+  Catalog (#2)` (2026-11-07). Five review rounds (Agent B), each a deeper
+  class — invalid DDL → production wiring → impossible assertion → wire-edge
+  materialization (Guid/DATETIME2 as &str) → client-side self-deadlock →
+  test-literal no-ops → fmt — every one closed and engine-proven on fresh
+  containers before merge.
+- **Next on main (90/90 green):** Agent A: spec 006 (Management) doloop
+  (`story/006-management` in progress). Agent B: spec 005 (SCORM) plan +
+  tasks, then `story/005-scorm` implementation (spec approved `2851ccf`,
+  plan-level wire discipline: NVARCHAR(40) NEWID-string ids, no
+  UNIQUEIDENTIFIER read as &str, 2601/2627 on both error legs, N-launch
+  race over N independent connections).
