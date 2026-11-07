@@ -14,7 +14,7 @@ use tokio::net::TcpStream;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
 use super::{NewSession, SchemaStatus, SessionRow, Storage, StorageError};
-use crate::migrate::{checksum, MIGRATIONS};
+use crate::migrate::checksum;
 use contracts::{Role, User};
 
 /// A single client behind a mutex (the modular monolith needs one connection at
@@ -163,7 +163,7 @@ impl Storage for TiberiusStorage {
         })
     }
 
-    async fn run_migrations(&self) -> Result<Vec<String>, StorageError> {
+    async fn run_migrations(&self, manifest: &[(&str, &str)]) -> Result<Vec<String>, StorageError> {
         let mut g = self.guard().await?;
         let client = g.as_mut().unwrap();
         client
@@ -179,7 +179,7 @@ impl Storage for TiberiusStorage {
             .map_err(|e| StorageError::Unavailable(format!("mssql migrate: {e}")))?;
 
         let mut applied_now = Vec::new();
-        for &(name, sql) in MIGRATIONS {
+        for &(name, sql) in manifest {
             let stream = client
                 .query(
                     "SELECT COUNT(*) FROM dbo.schema_migrations WHERE name = @P1",

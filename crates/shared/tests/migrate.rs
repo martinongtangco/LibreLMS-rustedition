@@ -6,21 +6,30 @@ use shared::storage::{MemoryStorage, Storage};
 #[tokio::test]
 async fn second_migration_run_is_a_noop_with_bookkeeping() {
     let s = MemoryStorage::new();
-    let first = s.run_migrations().await.expect("first run");
+    let first = s
+        .run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("first run");
     assert_eq!(
         first,
         vec!["0001_base", "0002_seed"],
         "all scripts applied once"
     );
 
-    let second = s.run_migrations().await.expect("second run");
+    let second = s
+        .run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("second run");
     assert!(
         second.is_empty(),
         "second run must apply nothing (idempotent)"
     );
 
     // Third run as well — property, not a one-off.
-    let third = s.run_migrations().await.expect("third run");
+    let third = s
+        .run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("third run");
     assert!(
         third.is_empty(),
         "third run must apply nothing (idempotent)"

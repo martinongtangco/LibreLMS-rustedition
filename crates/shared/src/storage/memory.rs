@@ -59,10 +59,6 @@ impl MemoryStorage {
 /// Migration scripts (name, sql) — mirrors `migrations/*.sql` for the memory
 /// implementation. The memory "apply" records the script and applies its
 /// semantic effect (schema flag / seed).
-const MIGRATIONS: &[(&str, &str)] = &[
-    ("0001_base", "see migrations/0001_base.sql"),
-    ("0002_seed", "see migrations/0002_seed.sql"),
-];
 
 #[async_trait]
 impl Storage for MemoryStorage {
@@ -79,10 +75,10 @@ impl Storage for MemoryStorage {
         })
     }
 
-    async fn run_migrations(&self) -> Result<Vec<String>, StorageError> {
+    async fn run_migrations(&self, manifest: &[(&str, &str)]) -> Result<Vec<String>, StorageError> {
         let mut g = self.inner.lock().expect("poisoned");
         let mut applied_now = Vec::new();
-        for (name, _sql) in MIGRATIONS {
+        for (name, _sql) in manifest {
             if g.applied.iter().any(|a| a == name) {
                 continue; // idempotent (research R1, spec US2.3)
             }
@@ -197,9 +193,15 @@ mod tests {
     #[tokio::test]
     async fn migrations_are_idempotent() {
         let s = MemoryStorage::new();
-        let first = s.run_migrations().await.expect("migrate");
+        let first = s
+            .run_migrations(crate::migrate::MIGRATIONS)
+            .await
+            .expect("migrate");
         assert_eq!(first, vec!["0001_base", "0002_seed"]);
-        let second = s.run_migrations().await.expect("migrate again");
+        let second = s
+            .run_migrations(crate::migrate::MIGRATIONS)
+            .await
+            .expect("migrate again");
         assert!(second.is_empty(), "second run must be a no-op");
         assert!(matches!(
             s.schema_status().await.expect("status"),
@@ -216,7 +218,7 @@ mod tests {
     #[tokio::test]
     async fn session_lifecycle() {
         let s = MemoryStorage::new();
-        s.run_migrations().await.unwrap();
+        s.run_migrations(crate::migrate::MIGRATIONS).await.unwrap();
         let row = NewSession {
             token_hash: "h1".into(),
             user_id: "dev-user".into(),

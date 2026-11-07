@@ -16,7 +16,9 @@ fn rng() -> rand::rngs::StdRng {
 
 async fn setup() -> (Arc<dyn Storage>, Arc<MemorySessionStore>) {
     let s = MemoryStorage::new();
-    s.run_migrations().await.expect("migrate");
+    s.run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("migrate");
     (
         Arc::new(s) as Arc<dyn Storage>,
         Arc::new(MemorySessionStore::new()),

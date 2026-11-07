@@ -9,7 +9,9 @@ use shared::storage::{MemoryStorage, Storage};
 #[tokio::test]
 async fn store_flush_loses_only_the_bag() {
     let s = MemoryStorage::new();
-    s.run_migrations().await.expect("migrate");
+    s.run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("migrate");
     let mut rng = rand::rngs::StdRng::seed_from_u64(7);
     let (token, _row) = establish(
         &s as &dyn Storage,

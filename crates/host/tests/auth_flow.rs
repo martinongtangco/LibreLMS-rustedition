@@ -13,7 +13,9 @@ use common::{get_with, wait_health_ok, AppConfig};
 /// Create a real session via the shared auth API and return the token.
 async fn make_token(user_id: &str, org: &str) -> (Arc<dyn shared::storage::Storage>, String) {
     let s = MemoryStorage::new();
-    s.run_migrations().await.expect("migrate");
+    s.run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("migrate");
     let storage: Arc<dyn shared::storage::Storage> = Arc::new(s);
     let mut rng = rand::rngs::StdRng::seed_from_u64(9);
     let now = std::time::SystemTime::now()
@@ -100,7 +102,9 @@ async fn valid_cookie_out_of_scope_is_403() {
 async fn expired_cookie_is_401_never_500() {
     // A token established in the far past is expired at "now" (real clock).
     let s = MemoryStorage::new();
-    s.run_migrations().await.expect("migrate");
+    s.run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("migrate");
     let storage: Arc<dyn shared::storage::Storage> = Arc::new(s);
     // Create a session whose expiry is already in the past.
     let now = std::time::SystemTime::now()

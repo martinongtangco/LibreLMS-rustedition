@@ -27,7 +27,10 @@ async fn full_environment_migrations_health_and_bag() {
         Arc::new(TiberiusStorage::connect(&db).await.expect("mssql connects"));
     storage.verify().await.expect("mssql verify");
     let before = storage.schema_status().await.expect("schema status");
-    let applied = storage.run_migrations().await.expect("migrate");
+    let applied = storage
+        .run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("migrate");
     eprintln!("applied: {applied:?}");
     let after = storage.schema_status().await.expect("schema status after");
     assert_eq!(
@@ -36,7 +39,10 @@ async fn full_environment_migrations_health_and_bag() {
         "schema ready after migrations (was {before:?})"
     );
     // Idempotency on the real engine too (spec US2.3).
-    let again = storage.run_migrations().await.expect("migrate again");
+    let again = storage
+        .run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("migrate again");
     assert!(again.is_empty(), "real engine: second run is a no-op");
 
     // Session store: verify, bag set/get/refresh.
@@ -59,7 +65,9 @@ async fn full_environment_migrations_health_and_bag() {
 
     // Memory doubles behave identically at the trait level (contract check).
     let mem: Arc<dyn Storage> = Arc::new(MemoryStorage::new());
-    mem.run_migrations().await.expect("memory migrate");
+    mem.run_migrations(shared::migrate::MIGRATIONS)
+        .await
+        .expect("memory migrate");
     let mem_store = MemorySessionStore::new();
     mem_store.set_bag("h", "{}", 60).await.expect("memory bag");
     assert_eq!(mem_store.get_bag("h").await.unwrap().as_deref(), Some("{}"));

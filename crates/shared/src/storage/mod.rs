@@ -73,7 +73,7 @@ pub trait Storage: Send + Sync {
 
     /// Apply all pending migrations (idempotent — research R1).
     /// Returns the names of scripts applied during this call.
-    async fn run_migrations(&self) -> Result<Vec<String>, StorageError>;
+    async fn run_migrations(&self, manifest: &[(&str, &str)]) -> Result<Vec<String>, StorageError>;
 
     async fn create_session(&self, s: &NewSession) -> Result<(), StorageError>;
     async fn get_session(&self, token_hash: &str) -> Result<Option<SessionRow>, StorageError>;
