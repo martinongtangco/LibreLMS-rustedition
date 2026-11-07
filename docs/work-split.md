@@ -16,7 +16,7 @@ ownership. Amended only via PR.
 1. **Phase 0 — Setup** (Agent A): repo, spec-kit, constitution, CI. Agent B clones and
    verifies tooling (`cargo --version`, `uv`/`specify`, `git`, `gh`).
 2. **Phase 1 — Foundation spec** (Agent A drafts on `main`, Agent B reviews):
-   spec 001 = workspace layout, contracts crate, host (axum), sqlx pool, Valkey client,
+   spec 001 = workspace layout, contracts crate, host (axum), tiberius pool, Valkey client,
    auth skeleton, askama, CI. `/speckit.specify → .plan → .tasks`.
 3. **Phase 2 — Foundation implementation** (Agent A, doloop): build the foundation,
    PR → Agent B reviews (first full cross-review; also validates the Windows build
