@@ -3,7 +3,30 @@
 //! The test injects a path dependency into crates/catalog/Cargo.toml, runs
 //! the check, and restores the file (self-cleaning — Principle XVII).
 
-use std::process::Command;
+/// CR-A: Windows console-app search does NOT consult CWD, and
+/// C:\Windows\System32\bash.exe is the WSL launcher (unusable here).
+/// Resolve: $BASH → Git Bash → diagnostic. Linux: plain `bash`.
+fn bash_command() -> std::process::Command {
+    #[cfg(target_os = "windows")]
+    {
+        let candidates = [
+            std::env::var("BASH").ok(),
+            Some(r"C:\Program Files\Git\bin\bash.exe".to_string()),
+        ];
+        for c in candidates.into_iter().flatten() {
+            if std::path::Path::new(&c).exists() {
+                return std::process::Command::new(c);
+            }
+        }
+        panic!(
+            "bash not found: set BASH or install Git Bash (checked $BASH, C:\\Program Files\\Git\\bin\\bash.exe)"
+        );
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        std::process::Command::new("bash")
+    }
+}
 
 fn repo_root() -> std::path::PathBuf {
     // tests/ → crates/host/ → crates/ → repo root
@@ -24,10 +47,7 @@ fn boundary_check_detects_module_to_module_dependency() {
     std::fs::write(&catalog_toml, &violated).expect("write violation");
 
     // Run the boundary check against the violating tree.
-    let status = Command::new("bash")
-        .arg(&check)
-        .output()
-        .expect("run check");
+    let status = bash_command().arg(&check).output().expect("run check");
     let out = format!(
         "{}{}",
         String::from_utf8_lossy(&status.stdout),
@@ -46,7 +66,7 @@ fn boundary_check_detects_module_to_module_dependency() {
     );
 
     // Clean tree passes.
-    let clean = Command::new("bash")
+    let clean = bash_command()
         .arg(&check)
         .output()
         .expect("run clean check");

@@ -37,11 +37,16 @@ fn parse_database_url(url: &str) -> Result<(String, u16, String, String, String,
     let (user, pass) = auth
         .split_once(':')
         .ok_or_else(|| "DATABASE_URL missing user:pass".to_string())?;
-    let (hostport, query) = match hostpart.split_once('?') {
+    // Query is stripped BEFORE the db name is derived (CR-B: the documented
+    // `?encrypt=disable` must not leak into the database name).
+    let (noquery, query) = match hostpart.split_once('?') {
         Some((hp, q)) => (hp, q),
         None => (hostpart, ""),
     };
-    let hostport = hostport.split('/').next().unwrap_or(hostport);
+    let (hostport, db) = match noquery.rsplit_once('/') {
+        Some((hp, db)) => (hp, db.to_string()),
+        None => (noquery, String::new()),
+    };
     let (host, port) = match hostport.rsplit_once(':') {
         Some((h, p)) => (
             h.to_string(),
@@ -50,15 +55,19 @@ fn parse_database_url(url: &str) -> Result<(String, u16, String, String, String,
         ),
         None => (hostport.to_string(), 1433),
     };
-    let db = hostpart
-        .strip_prefix(hostport)
-        .map(|rest| rest.trim_start_matches('/'))
-        .unwrap_or("")
-        .to_string();
     if db.is_empty() {
         return Err("DATABASE_URL missing database name".to_string());
     }
-    let encrypt = !matches!(query.split_whitespace().next(), Some("encrypt=false"));
+    // CR-B: `encrypt` accepts disable | off | false → OFF; anything else (or an
+    // absent parameter) → ON.
+    let encrypt = match query.split('&').find_map(|kv| {
+        kv.split_once('=')
+            .filter(|(k, _)| *k == "encrypt")
+            .map(|(_, v)| v.to_lowercase())
+    }) {
+        Some(v) => !matches!(v.as_str(), "disable" | "off" | "false"),
+        None => true,
+    };
     Ok((user.to_string(), port, host, db, pass.to_string(), encrypt))
 }
 
@@ -455,4 +464,51 @@ mod tests {
         assert_eq!(unix_ts_to_sql(86_400), "1970-01-02 00:00:00");
         assert_eq!(unix_ts_to_sql(1_750_000_000), "2025-06-15 15:06:40");
     }
+}
+/// CR-B regression (peer full-environment run, machine B): the documented
+/// `.env.example` config must parse to a clean db name and encrypt OFF.
+#[test]
+fn documented_env_example_parses() {
+    let (user, port, host, db, _pass, encrypt) =
+        parse_database_url("mssql://sa:CHANGE_ME@localhost:1433/LibreLms?encrypt=disable")
+            .expect("documented config parses");
+    assert_eq!(user, "sa");
+    assert_eq!(port, 1433);
+    assert_eq!(host, "localhost");
+    assert_eq!(db, "LibreLms", "db name must not carry the query string");
+    assert!(!encrypt, "encrypt=disable means OFF");
+}
+
+#[test]
+fn encrypt_off_accepted_forms() {
+    for v in ["disable", "off", "false"] {
+        let (_, _p, _h, db, _pass, encrypt) =
+            parse_database_url(&format!("mssql://sa:p@h:1433/Db?encrypt={v}")).unwrap();
+        assert_eq!(db, "Db");
+        assert!(!encrypt, "encrypt={v} must parse as OFF");
+    }
+}
+
+#[test]
+fn encrypt_on_and_default() {
+    let (_, _, _, _, _, encrypt) =
+        parse_database_url("mssql://sa:p@h:1433/Db?encrypt=true").unwrap();
+    assert!(encrypt, "encrypt=true → ON");
+    let (_, _, _, _, _, encrypt) = parse_database_url("mssql://sa:p@h:1433/Db").unwrap();
+    assert!(encrypt, "no encrypt param → ON (default, explicit)");
+}
+
+#[test]
+fn extra_query_params_do_not_leak_into_db() {
+    let (_, _, _, db, _, encrypt) =
+        parse_database_url("mssql://sa:p@h:1433/Db?encrypt=disable&trust_server_certificate=true")
+            .unwrap();
+    assert_eq!(db, "Db");
+    assert!(!encrypt);
+}
+
+#[test]
+fn missing_database_name_is_an_error() {
+    assert!(parse_database_url("mssql://sa:p@h:1433/").is_err());
+    assert!(parse_database_url("mssql://sa:p@h:1433").is_err());
 }

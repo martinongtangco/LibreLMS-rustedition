@@ -42,6 +42,15 @@ impl std::fmt::Display for AuthError {
 
 impl std::error::Error for AuthError {}
 
+/// CR-D: only a storage OUTAGE maps to Unavailable (503); absence of rows is
+/// an authentication decision (401/403), never an error.
+fn storage_err(e: crate::storage::StorageError) -> AuthError {
+    match e {
+        crate::storage::StorageError::Unavailable(_) => AuthError::Unavailable,
+        _ => AuthError::Unauthenticated,
+    }
+}
+
 /// 32 random bytes, base64url (43 chars, no padding) — RFC 4648 §5.
 pub fn generate_token(rng: &mut impl Rng) -> String {
     let bytes: [u8; 32] = rng.random();
@@ -92,18 +101,18 @@ pub async fn establish(
     max_ttl_secs: i64,
 ) -> Result<(String, NewSession), AuthError> {
     // The actor must be a member of the org (else scope is meaningless).
-    // A storage failure is conservatively a Scope rejection (no silent grant).
+    // CR-D: a storage OUTAGE is Unavailable (503), not a Scope/401 verdict.
     let member = storage
         .org_role(user_id, organization_id)
         .await
-        .map_err(|_| AuthError::Scope)?;
+        .map_err(storage_err)?;
     if member.is_none() {
         return Err(AuthError::Scope);
     }
     storage
         .get_user(user_id)
         .await
-        .map_err(|_| AuthError::Unauthenticated)?
+        .map_err(storage_err)?
         .ok_or(AuthError::Unauthenticated)?;
 
     let token = generate_token(rng);
@@ -115,10 +124,7 @@ pub async fn establish(
         last_activity: now,
         expires_at: now + ttl_secs.min(max_ttl_secs),
     };
-    storage
-        .create_session(&row)
-        .await
-        .map_err(|_| AuthError::Unauthenticated)?;
+    storage.create_session(&row).await.map_err(storage_err)?;
     Ok((token, row))
 }
 
@@ -158,7 +164,7 @@ pub async fn verify(
     if !storage
         .touch_session(&hash, now, new_expiry)
         .await
-        .map_err(|_| AuthError::Unauthenticated)?
+        .map_err(storage_err)?
     {
         return Err(AuthError::Unauthenticated);
     }
@@ -171,20 +177,20 @@ pub async fn verify(
     storage
         .org_role(&row.user_id, &row.organization_id)
         .await
-        .map_err(|_| AuthError::Unauthenticated)?
+        .map_err(storage_err)?
         .ok_or(AuthError::Scope)?;
 
     let user = storage
         .get_user(&row.user_id)
         .await
-        .map_err(|_| AuthError::Unauthenticated)?
+        .map_err(storage_err)?
         .ok_or(AuthError::Unauthenticated)?;
 
     // Re-read the role for the context.
     let role = storage
         .org_role(&row.user_id, &row.organization_id)
         .await
-        .map_err(|_| AuthError::Unauthenticated)?
+        .map_err(storage_err)?
         .ok_or(AuthError::Scope)?;
 
     Ok(AuthContext {
