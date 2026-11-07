@@ -33,12 +33,16 @@ async fn make_token(user_id: &str, org: &str) -> (Arc<dyn shared::storage::Stora
 async fn missing_cookie_is_401_with_envelope() {
     let (storage, _token) = make_token("dev-user", "dev-org").await;
     let store = Arc::new(MemorySessionStore::new());
+    let enrollment_repo = Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new());
+    let course_source = Arc::new(enrollment::memory::InMemoryCourseSource::new());
     let handle = tokio::spawn(async move {
         host::run_with_stop(
             AppConfig::valid(17321),
             storage,
             store,
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            enrollment_repo,
+            course_source,
             None,
         )
         .await
@@ -57,12 +61,16 @@ async fn missing_cookie_is_401_with_envelope() {
 async fn valid_cookie_in_scope_is_200_identity() {
     let (storage, token) = make_token("dev-user", "dev-org").await;
     let store = Arc::new(MemorySessionStore::new());
+    let enrollment_repo = Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new());
+    let course_source = Arc::new(enrollment::memory::InMemoryCourseSource::new());
     let handle = tokio::spawn(async move {
         host::run_with_stop(
             AppConfig::valid(17322),
             storage,
             store,
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            enrollment_repo,
+            course_source,
             None,
         )
         .await
@@ -92,12 +100,16 @@ async fn valid_cookie_in_scope_is_200_identity() {
 async fn valid_cookie_out_of_scope_is_403() {
     let (storage, token) = make_token("dev-user", "dev-org").await;
     let store = Arc::new(MemorySessionStore::new());
+    let enrollment_repo = Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new());
+    let course_source = Arc::new(enrollment::memory::InMemoryCourseSource::new());
     let handle = tokio::spawn(async move {
         host::run_with_stop(
             AppConfig::valid(17323),
             storage,
             store,
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            enrollment_repo,
+            course_source,
             None,
         )
         .await
@@ -142,12 +154,16 @@ async fn expired_cookie_is_401_never_500() {
     };
     storage.create_session(&row).await.expect("create");
     let store = Arc::new(MemorySessionStore::new());
+    let enrollment_repo = Arc::new(enrollment::memory::InMemoryEnrollmentRepo::new());
+    let course_source = Arc::new(enrollment::memory::InMemoryCourseSource::new());
     let handle = tokio::spawn(async move {
         host::run_with_stop(
             AppConfig::valid(17324),
             storage,
             store,
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            enrollment_repo,
+            course_source,
             None,
         )
         .await

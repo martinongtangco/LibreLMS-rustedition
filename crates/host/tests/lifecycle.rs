@@ -83,6 +83,8 @@ async fn startup_with_valid_config_reports_ok_health() {
             storage,
             store,
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            enrollment_repo,
+            course_source,
             Some(stop2),
         )
         .await
@@ -118,6 +120,8 @@ async fn degraded_when_session_store_down() {
             storage,
             store,
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+            enrollment_repo,
+            course_source,
             Some(stop2),
         )
         .await
@@ -147,6 +151,8 @@ async fn port_in_use_fails_fast_naming_the_port() {
         storage,
         store,
         std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
+        enrollment_repo,
+        course_source,
         None,
     )
     .await;

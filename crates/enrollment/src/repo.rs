@@ -80,6 +80,22 @@ pub enum EnrollmentError {
     Unavailable,
 }
 
+impl std::fmt::Display for EnrollmentError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Stable, non-leaky (spec 001 FR-009 convention).
+        match self {
+            Self::Scope => write!(f, "organization scope mismatch"),
+            Self::Forbidden => write!(f, "actor does not allow this action"),
+            Self::NotFound => write!(f, "resource not found"),
+            Self::AlreadyEnrolled => write!(f, "already enrolled"),
+            Self::NotEnrolled => write!(f, "not enrolled"),
+            Self::AlreadyCompleted => write!(f, "already completed"),
+            Self::Validation { field, .. } => write!(f, "invalid input: {field}"),
+            Self::Unavailable => write!(f, "storage unavailable"),
+        }
+    }
+}
+
 /// The course seam (PQ-2 agreed shape — the provider's 2-method minimal set;
 /// the spec 003 plan mirrors it in `CourseRepo`, the host adapts 1:1).
 ///

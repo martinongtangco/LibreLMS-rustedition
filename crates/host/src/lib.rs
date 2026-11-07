@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use askama::Template;
-use axum::extract::{FromRequestParts, State};
+use axum::extract::{FromRef, FromRequestParts, State};
 use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
@@ -43,6 +43,8 @@ pub struct AppState {
     pub cfg: Config,
     /// Catalog slice state (spec 003; host mount pattern).
     pub catalog_state: catalog::routes::RepoState,
+    /// Enrollment slice state (spec 004; host mount pattern).
+    pub enrollment_state: enrollment::routes::RepoState,
 }
 
 /// The home page (askama — R3).
@@ -73,6 +75,13 @@ impl axum::response::IntoResponse for HomePage {
     }
 }
 
+impl axum::extract::FromRef<AppState> for enrollment::routes::RepoState {
+    fn from_ref(state: &AppState) -> Self {
+        // RepoState is an Arc holder — cloning is cheap (0.8: owned return).
+        state.enrollment_state.clone()
+    }
+}
+
 fn app(state: AppState) -> Router {
     // The caller middleware wraps ONLY the catalog routes — /healthz and / must
     // stay open (an auth-requiring layer there breaks the health gate).
@@ -89,10 +98,28 @@ fn app(state: AppState) -> Router {
                 }
             },
         ));
+    // The caller middleware wraps ONLY the enrollment routes — /healthz and /
+    // must stay open (an auth-requiring layer there breaks the health gate).
+    let enrollment_routes = enrollment::routes::routes().layer(
+        axum::middleware::from_fn_with_state(
+            state.clone(),
+            |Authed(ctx): Authed, mut req: axum::extract::Request, next: axum::middleware::Next| {
+                async move {
+                    req.extensions_mut().insert(enrollment::routes::EnrollmentCaller {
+                        user_id: ctx.user.id.clone(),
+                        organization_id: ctx.organization_id,
+                        role: ctx.role,
+                    });
+                    next.run(req).await
+                }
+            },
+        ),
+    );
     Router::new()
         .route("/healthz", get(healthz))
         .route("/me", get(me))
         .merge(catalog_routes)
+        .merge(enrollment_routes)
         .route("/", get(home))
         .with_state(state)
         .fallback(not_found)
@@ -258,6 +285,8 @@ pub async fn run_with_stop(
     storage: Arc<dyn Storage>,
     store: Arc<dyn SessionStore>,
     catalog_repo: Arc<dyn catalog::repo::CourseRepo>,
+    enrollment_repo: Arc<dyn enrollment::repo::EnrollmentRepo>,
+    course_source: Arc<dyn enrollment::repo::CourseSource>,
     stop: Option<Arc<Notify>>,
 ) -> Result<(), HostError> {
     // Fail-fast backend verification (spec US1: startup proof).
@@ -276,6 +305,12 @@ pub async fn run_with_stop(
     // Spec 003 lane: catalog's own migrations (Module Persistence Seam).
     manifest.extend(
         catalog::migrations::MIGRATIONS
+            .iter()
+            .map(|(n, sql)| (*n, *sql)),
+    );
+    // Spec 004 lane: enrollment's own migrations (Module Persistence Seam).
+    manifest.extend(
+        enrollment::migrations::MIGRATIONS
             .iter()
             .map(|(n, sql)| (*n, *sql)),
     );
@@ -300,6 +335,7 @@ pub async fn run_with_stop(
         store: store.clone(),
         cfg: cfg.clone(),
         catalog_state: catalog::routes::RepoState::new(catalog_repo.clone()),
+        enrollment_state: enrollment::routes::RepoState::new(enrollment_repo, course_source),
     };
     let router = app(state);
 
@@ -334,8 +370,10 @@ pub async fn run(
     storage: Arc<dyn Storage>,
     store: Arc<dyn SessionStore>,
     catalog_repo: Arc<dyn catalog::repo::CourseRepo>,
+    enrollment_repo: Arc<dyn enrollment::repo::EnrollmentRepo>,
+    course_source: Arc<dyn enrollment::repo::CourseSource>,
 ) -> Result<(), HostError> {
-    run_with_stop(cfg, storage, store, catalog_repo, None).await
+    run_with_stop(cfg, storage, store, catalog_repo, enrollment_repo, course_source, None).await
 }
 
 #[cfg(test)]
