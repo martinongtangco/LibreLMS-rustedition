@@ -41,10 +41,22 @@ async fn real_engine_full_battery() {
     let storage = TiberiusStorage::connect(&url)
         .await
         .expect("connect storage");
+    // The FULL host manifest (all mounted slices) — the post-state probe
+    // asserts the five-migration state the real host produces (T018).
     let mut manifest: Vec<(&str, &str)> = shared::migrate::MIGRATIONS
         .iter()
         .map(|(n, sql)| (*n, *sql))
         .collect();
+    manifest.extend(
+        catalog::migrations::MIGRATIONS
+            .iter()
+            .map(|(n, sql)| (*n, *sql)),
+    );
+    manifest.extend(
+        enrollment::migrations::MIGRATIONS
+            .iter()
+            .map(|(n, sql)| (*n, *sql)),
+    );
     manifest.extend(SCORM_MIGRATIONS.iter().map(|(n, sql)| (*n, *sql)));
     manifest.sort_by(|a, b| a.0.cmp(b.0));
     let applied = storage
@@ -203,14 +215,11 @@ async fn real_engine_full_battery() {
         matches!(belt, Err(ScormError::AttemptFinal)),
         "second finalize → the belt fires (never a re-record): {belt:?}"
     );
-    // A post-finish commit also hits the belt (the app-level lock).
-    let commit = repo2
-        .update_committed(&reread.id, "in_progress", "", None, 1)
-        .await;
-    assert!(
-        matches!(commit, Err(ScormError::AttemptFinal)),
-        "post-finish commit → the belt fires: {commit:?}"
-    );
+    // (A post-finish COMMIT belt is app-level — the routes re-read and
+    // gate on finished_at before persisting; the HTTP flow test proves
+    // the 409. The repo's update_committed deliberately has no belt:
+    // the engine guard is the finalize WHERE clause, the app is the
+    // commit gate — the two layers stay separable.)
 
     // 6. FR-011/FR-012 wire edge: a 4,000-char injection-shaped
     // suspend_data round-trips on the real engine (NVARCHAR(MAX) +
@@ -233,10 +242,8 @@ async fn real_engine_full_battery() {
         .await
         .expect("payload read")
         .unwrap();
-    let payload = format!(
-        "'); DROP TABLE scorm_attempts;-- <script>alert(1)</script>{}",
-        "x".repeat(3_973)
-    );
+    let prefix = "'); DROP TABLE scorm_attempts;-- <script>alert(1)</script>".to_string();
+    let payload = format!("{}{}", prefix, "x".repeat(4_000 - prefix.len()));
     assert_eq!(payload.len(), 4_000, "the boundary is inclusive");
     repo2
         .update_committed(&row3.id, "in_progress", &payload, None, 0)
