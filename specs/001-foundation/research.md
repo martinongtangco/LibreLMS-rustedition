@@ -36,7 +36,14 @@ CI.
 
 **Unknown**: template rendering path for axum 0.8.
 
-**Decision**: `askama` 0.12 with its `axum` feature — `Template` implements axum's
+**Decision (verified during T001 implementation)**: `askama` 0.12 does **not** ship an
+`axum` feature in this environment (the `with-axum` path requires the separate
+`askama-axum` crate, which is not resolvable from here). Chosen approach: a **manual
+`impl axum::response::IntoResponse`** adapter in the host crate (template renders to a
+String; the adapter sets `text/html` + `Content-Type`). No plan change — ~1 day cost,
+absorbed in the foundation.
+
+~~Original note: `askama` 0.12 with its `axum` feature — `Template` implements axum's
 `IntoResponse`. One base layout + home page in this slice; module pages are added by
 their slices. No client-side JS framework.
 
@@ -45,10 +52,10 @@ their slices. No client-side JS framework.
 **Unknown**: where the session token lives.
 
 **Decision**: opaque random token (32 bytes, base64url) set as an `HttpOnly` cookie
-(`__Host-`-style attributes, `SameSite=Lax`). The session row (token hash, user id,
+(cookie `lms_session` — `HttpOnly`, `SameSite=Lax`, `Secure` only when served over HTTPS; no `__Host-` prefix, which would break plain-HTTP dev). The session row (token hash, user id,
 org scope, created/last-activity, expiry) lives in **MSSQL** (system of record —
 Principle VI). The Valkey store holds only *ephemeral* per-session state
-(`lms:session:{token_hash}` → JSON bag, TTL = session lifetime) — spec FR-008. If the
+(`lms:session:{token_hash}:bag` → JSON bag, TTL = session lifetime) — spec FR-008. If the
 store is down at runtime, session-dependent requests 503; the process keeps serving
 health (spec User Story 1, scenario 4). Sliding expiry: `last_activity` refreshed on
 authenticated requests, bounded by an absolute max lifetime.
@@ -70,7 +77,7 @@ layers).
 ## R6. Dependency versions
 
 **Finding**: versions are already pinned in the workspace `Cargo.toml`
-(axum 0.8, sqlx 0.8 mssql, redis 0.27 tokio-comp, askama 0.12, cookie 0.18, tokio 1,
+(axum 0.8, tiberius 0.13 (ADR 0003), redis 0.27 tokio-comp, askama 0.12, cookie 0.18, tokio 1,
 serde 1). No new dependency is added by this plan — if one becomes necessary during
 implementation it gets a plan/ADR entry first (Principle XVIII).
 

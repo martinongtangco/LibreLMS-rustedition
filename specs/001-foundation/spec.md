@@ -75,7 +75,8 @@ A learner or administrator signs in and receives a browser session that carries 
 are* and *which organization they are acting in*; the session survives page loads for its
 configured lifetime, refreshes on activity, and expires when it should. Ephemeral,
 per-attempt state (later: the live SCORM bag) is storable in the session store keyed by
-session — never in the database.
+session — the *live* bag is not in the database (committed SCORM state is persisted by
+the owning module per Principle VI; see FR-008).
 
 **Why this priority**: Both the learner-facing (Enrollment, SCORM) and the admin-facing
 (Management) slices assume authenticated, organization-scoped actors. The *mechanism* is
@@ -104,8 +105,10 @@ expiry) and verify the session is rejected.
 
 - Configuration with wrong *type* for a value (not just missing): same fail-fast behavior
   as missing, naming the offending item.
-- Database reachable but schema not migrated: startup succeeds, health check reports
-  "schema not ready" instead of crashing.
+- Database reachable but schema migrations **pending** (startup runner not yet complete):
+  startup succeeds, health check reports "schema not ready" instead of crashing.
+- A startup migration **fails**: fail-fast, naming the offending script (FR-001 posture —
+  a failed migration is deploy-blocking, not a degraded state).
 - Unknown route: 404 with a plain, non-leaky body (no stack traces, no internal paths).
 - Session token presented but the session store entry is gone: treated as expired (401),
   never a server error.
@@ -134,7 +137,10 @@ expiry) and verify the session is rejected.
   configurable lifetime (sliding on activity); the session MUST carry the actor's identity
   and organization scope, and requests outside the scope MUST be rejected.
 - **FR-008**: Ephemeral per-session state MUST be storable in the session store keyed by
-  session id with a configurable TTL, and MUST never be persisted to the system of record.
+  session id with a configurable TTL, and MUST not *persist* to the system of record.
+  (Scope: the **live** bag is ephemeral; **committed** state — e.g. SCORM
+  `LMSCommit`/`LMSFinish` records — is persisted to the system of record by the owning
+  module, per Principle VI.)
 - **FR-009**: The application MUST log startup, shutdown, and errors in a structured way,
   and MUST never log connection strings, session tokens, or other secrets.
 - **FR-010**: A mail-sending interface MUST be defined with a development outbox
@@ -186,5 +192,8 @@ expiry) and verify the session is rejected.
   the session store holds only ephemeral state (Principle VI).
 - One seeder user (development identity) is created by the migration/seeder process for
   manual smoke testing; real user provisioning is a later slice.
-- Windows builds use the MSVC toolchain; no cross-compilation targets are needed in this
-  slice.
+- Windows dev machine B builds with a per-directory rustup override
+  `1.99.1-x86_64-pc-windows-gnu` (MSVC is not usable on that machine — partial VS
+  installs, no Win10 SDK; see plan Technical Context). Gate commands are
+  toolchain-agnostic, so `rust-toolchain.toml`'s `1.99.1` stays the single pinned
+  version. No cross-compilation targets are needed in this slice.
