@@ -175,11 +175,8 @@ impl ManagementRepo for InMemoryManagementRepo {
             self.memberships
                 .lock()
                 .unwrap()
-                .insert((org.to_string(), user.id.clone()), role.clone());
-            return Ok(ManagedUser {
-                user,
-                role: role.clone(),
-            });
+                .insert((org.to_string(), user.id.clone()), *role);
+            return Ok(ManagedUser { user, role: *role });
         }
         let id = format!("mu-{}", users.len() + 1);
         let user = User {
@@ -193,11 +190,8 @@ impl ManagementRepo for InMemoryManagementRepo {
         self.memberships
             .lock()
             .unwrap()
-            .insert((org.to_string(), id.clone()), role.clone());
-        Ok(ManagedUser {
-            user,
-            role: role.clone(),
-        })
+            .insert((org.to_string(), id.clone()), *role);
+        Ok(ManagedUser { user, role: *role })
     }
 
     async fn list_users(&self, org: &str) -> Result<Vec<ManagedUser>, ManagementError> {
@@ -212,7 +206,7 @@ impl ManagementRepo for InMemoryManagementRepo {
             .filter_map(|((_, uid), role)| {
                 users.get(uid).map(|user| ManagedUser {
                     user: user.clone(),
-                    role: role.clone(),
+                    role: *role,
                 })
             })
             .collect();
@@ -242,7 +236,7 @@ impl ManagementRepo for InMemoryManagementRepo {
         let mut memberships = self.memberships.lock().unwrap();
         match memberships.get_mut(&(org.to_string(), user_id.to_string())) {
             Some(r) => {
-                *r = role.clone();
+                *r = *role;
                 Ok(())
             }
             None => Err(ManagementError::Scope),

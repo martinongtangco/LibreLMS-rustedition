@@ -7,8 +7,8 @@
 //! - list-own-org returns only the actor org's users with roles;
 //! - re-role persists (admin → member);
 //! - remove deletes the membership only (the user row survives — multi-org);
-//! - duplicate email (sequential) → DuplicateEmail (LOGIC-LAYER; the engine
-//!  's UNIQUE constraint is the final arbiter under concurrency — T010);
+//! - duplicate email (sequential) → DuplicateEmail (LOGIC-LAYER; the engine's
+//!  UNIQUE constraint is the final arbiter under concurrency — T010);
 //! - cross-org user operation → Scope; an UNKNOWN user id is ALSO Scope
 //!   (CR-3: 403, never 404 — the 404 row is org-ids-only, FR-010);
 //! - junk role → Validation naming the field (FR-012, CR-1 — the repo-level
