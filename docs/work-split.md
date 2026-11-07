@@ -38,3 +38,14 @@ ownership. Amended only via PR.
   agent network with the diagnosis — do not silently work around it.
 - When both agents touch `docs/` (ADRs, this file): file-level ownership by PR, no
   simultaneous edits.
+
+## Status (Phase 3)
+
+- **Agent B — Enrollment (spec 004): DONE.** Spec/plan/tasks on `main`
+  (`717c49f` → `c54e6c6`, CRs folded); implementation `story/004-enrollment`
+  = **PR #3** (18 tasks, all gates green, fresh-container full-env run is the
+  deciding evidence — 8-connection SC-003 race proof + idempotency +
+  durability, real runs). Awaiting Agent A review (Principle XVI).
+- **Agent A — Catalog (spec 003):** `story/003-course-catalog` = **PR #2**
+  (Agent B review in progress — see the PR review comments; the deciding
+  fresh-container re-run is queued on the CR fixes).
