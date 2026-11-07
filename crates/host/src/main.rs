@@ -106,6 +106,21 @@ async fn main() {
     let scorm_enrollment_port: Arc<dyn scorm::repo::EnrollmentPort> =
         Arc::new(UnwiredEnrollmentPort);
 
+    let management_repo: Arc<dyn management::repo::ManagementRepo> = {
+        let r =
+            match management::tiberius::TiberiusManagementRepo::connect(cfg.database_url.as_str())
+                .await
+                .map_err(|e| format!("management: {e}"))
+            {
+                Ok(r) => r,
+                Err(m) => {
+                    eprintln!("management: {m}");
+                    std::process::exit(1);
+                }
+            };
+        Arc::new(r)
+    };
+
     if let Err(e) = host::run(
         cfg,
         storage,
@@ -116,6 +131,7 @@ async fn main() {
         scorm_repo,
         scorm_bag,
         scorm_enrollment_port,
+        management_repo,
     )
     .await
     {

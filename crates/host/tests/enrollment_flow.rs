@@ -102,6 +102,7 @@ async fn boot(
             Arc::new(scorm::memory::InMemoryScormRepo::new()),
             Arc::new(scorm::memory::InMemoryBagStore::new()),
             Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
+            std::sync::Arc::new(management::repo::InMemoryManagementRepo::new()),
             None,
         )
         .await

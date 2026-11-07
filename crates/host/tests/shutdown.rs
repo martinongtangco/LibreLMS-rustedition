@@ -41,6 +41,7 @@ async fn stop_signal_drains_and_exits_within_10s() {
             Arc::new(scorm::memory::InMemoryScormRepo::new()),
             Arc::new(scorm::memory::InMemoryBagStore::new()),
             Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
+            std::sync::Arc::new(management::repo::InMemoryManagementRepo::new()),
             Some(stop2),
         )
         .await
