@@ -17,6 +17,10 @@ use shared::Config;
 use tokio::sync::Notify;
 use tracing::{info, warn};
 
+/// Phase 4 cross-slice adapters (the host is the composition point —
+/// Principle III: module crates never depend on each other).
+pub mod adapters;
+
 /// A 404 page for unknown routes (spec edge case: plain, non-leaky body).
 const NOT_FOUND_BODY: &str = "404 Not Found\n";
 
