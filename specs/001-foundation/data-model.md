@@ -66,7 +66,7 @@ Typed, `serde`-serializable, no dependencies beyond `serde`:
 - `Enrollment { id, user_id, course_id, organization_id, status }` *(placeholder — Enrollment slice)*
 - `Completion { enrollment_id, completed_at }` *(placeholder — Enrollment slice)*
 - `ScormAttemptStatus { session_id, course_id, state, suspend_data, score_raw, session_time }`
-  *(placeholder — SCORM slice; the `bag` field of the ephemeral store maps to this)*
+  *(placeholder — SCORM slice; the **live** `cmi.*` bag lives in Valkey (`lms:session:{token_hash}:bag`, not in this row); **committed** state (final status, score) persists to MSSQL on LMSCommit/LMSFinish — Principle VI)*
 
 Rule (Principle III): module crates consume these shapes via `contracts` only; the
 boundary check fails the build on module→module dependencies.
