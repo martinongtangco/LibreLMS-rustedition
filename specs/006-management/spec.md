@@ -103,7 +103,11 @@ Assumptions).
 empty list.
 **FR-012**: Validation: email non-empty and ≤ 320 chars (the
 `dbo.users.email` column bound); name non-empty and ≤ 200 chars; organization
-name non-empty and ≤ 200 chars — 400 with the field name.
+name non-empty and ≤ 200 chars; **role is restricted to `admin` | `member`**
+(CR-1: a junk role is a 400 `validation` at the app layer; the
+`dbo.user_organizations` CHECK constraint is the belt, not the suspenders —
+a 2627-class CHECK violation maps to the SAME 400, never a 500) — 400 with
+the field name.
 **FR-013**: The module MUST own its repository (trait + tiberius impl +
 in-memory double) per the 001 Module Persistence Seam, and MUST depend on
 `contracts` + `shared` only (boundary check). The module adds NO new DDL in
@@ -156,5 +160,5 @@ manifest is empty by construction, documented as such.
 | unknown org id | 404 | `not-found` |
 | duplicate email (incl. unique violation) | 409 | `duplicate-email` |
 | delete non-empty org | 409 | `not-empty` |
-| validation failure | 400 | `validation` (field named in the body) |
+| validation failure (incl. junk role — the CHECK constraint is the belt) | 400 | `validation` (field named in the body) |
 | storage outage | 503 | `storage-unavailable` |
