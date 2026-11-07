@@ -53,7 +53,7 @@ pub fn error_response(e: &CatalogError) -> Response {
     let (status, code, message) = match e {
         CatalogError::NotFound => (
             axum::http::StatusCode::NOT_FOUND,
-            "not_found".to_string(),
+            "not-found".to_string(),
             "course not found".to_string(),
         ),
         CatalogError::Scope => (

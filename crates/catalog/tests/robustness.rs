@@ -46,3 +46,22 @@ async fn injection_shaped_search_terms_are_plain_text() {
         assert!(res.unwrap().is_empty(), "no match, no error for {term:?}");
     }
 }
+
+#[tokio::test]
+async fn like_meta_characters_are_literal_in_the_double() {
+    // CR-2b semantics pin: % and _ are NOT wildcards (the real engine is
+    // aligned to this via the ESCAPE clause — see TiberiusCourseRepo::list_for).
+    let repo = InMemoryCourseRepo::new();
+    repo.create_for_test(Course {
+        id: "c1".into(),
+        title: "aXb".into(),
+        description: String::new(),
+        organization_id: "org".into(),
+    })
+    .await
+    .expect("seed");
+    let r = repo.list_for("org", Some("a_b")).await.expect("no error");
+    assert!(r.is_empty(), "_ must not wildcard-match: {r:?}");
+    let r = repo.list_for("org", Some("a%b")).await.expect("no error");
+    assert!(r.is_empty(), "% must not wildcard-match: {r:?}");
+}

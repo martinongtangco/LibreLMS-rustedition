@@ -56,40 +56,44 @@ async fn real_engine_full_crud() {
     repo.verify().await.expect("verify");
 
     // 3. CRUD (FR-002/003).
+    // UUID-shaped orgs: the DDL stores organization_id as UNIQUEIDENTIFIER
+    // with CAST at the wire edge (001 convention) — a non-UUID org would
+    // fail the conversion, so the battery uses UUID-shaped strings to
+    // exercise exactly that path.
+    const ORG: &str = "11111111-1111-1111-1111-111111111111";
+    const OTHER: &str = "22222222-2222-2222-2222-222222222222";
+
     let created = repo
-        .create("org-full-env", "Full env course", Some("desc"))
+        .create(ORG, "Full env course", Some("desc"))
         .await
         .expect("create");
     assert!(!created.id.is_empty(), "server-generated id");
-    assert_eq!(created.organization_id, "org-full-env");
+    assert_eq!(created.organization_id, ORG);
 
-    let fetched = repo.get(&created.id, "org-full-env").await.expect("get");
+    let fetched = repo.get(&created.id, ORG).await.expect("get");
     assert_eq!(fetched.title, "Full env course");
     assert_eq!(fetched.description, "desc");
 
-    let filtered = repo
-        .list_for("org-full-env", Some("full env"))
-        .await
-        .expect("list");
+    let filtered = repo.list_for(ORG, Some("full env")).await.expect("list");
     assert!(
         filtered.iter().any(|c| c.id == created.id),
         "filter (LIKE) finds the course on the real engine"
     );
 
     let updated = repo
-        .update(&created.id, "org-full-env", Some("Renamed"), None)
+        .update(&created.id, ORG, Some("Renamed"), None)
         .await
         .expect("update");
     assert_eq!(updated.title, "Renamed");
     assert_eq!(updated.description, "desc", "COALESCE keeps description");
 
     // 4. Scope discipline on the real engine (US3.2 — 403-oracle rule).
-    let scope = repo.get(&created.id, "other-org").await;
+    let scope = repo.get(&created.id, OTHER).await;
     assert!(
         matches!(scope, Err(CatalogError::Scope)),
         "foreign-org get → Scope, got {scope:?}"
     );
-    let missing = repo.get("does-not-exist", "org-full-env").await;
+    let missing = repo.get("does-not-exist", ORG).await;
     assert!(
         matches!(missing, Err(CatalogError::NotFound)),
         "absent id → NotFound, got {missing:?}"
@@ -103,11 +107,27 @@ async fn real_engine_full_crud() {
     assert!(absent.is_none(), "absent → Ok(None) on the real engine");
 
     // 5. Validation on the real engine (FR-007).
-    let bad = repo.create("org-full-env", "", None).await;
+    let bad = repo.create(ORG, "", None).await;
     assert!(
         matches!(bad, Err(CatalogError::Validation { .. })),
         "{bad:?}"
     );
+
+    // 5c. CR-4: 5000-char boundary — proves the NVARCHAR(MAX) column AND the
+    // tiberius >4000-char wire path in one assert (Rust strings are uncapped,
+    // so no T-SQL REPLICATE cap gotcha applies here).
+    let big: String = std::iter::repeat('a').take(5_000).collect();
+    let bigc = repo
+        .create(ORG, "Boundary course", Some(&big))
+        .await
+        .expect("create 5000-char");
+    let bigr = repo.get(&bigc.id, ORG).await.expect("read back 5000-char");
+    assert_eq!(
+        bigr.description.len(),
+        5_000,
+        "5000-char description round-trips (NVARCHAR(MAX) + tiberius wire)"
+    );
+    repo.delete(&bigc.id, ORG).await.expect("delete boundary");
 
     // 6. Delete + confirm absent (FR-005).
     repo.delete(&created.id, "org-full-env")

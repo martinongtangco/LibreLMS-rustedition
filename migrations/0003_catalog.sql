@@ -6,7 +6,7 @@ BEGIN
         id              UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
         organization_id UNIQUEIDENTIFIER NOT NULL,
         title           NVARCHAR(200)  NOT NULL,
-        description     NVARCHAR(5000) NULL,
+        description     NVARCHAR(MAX)  NULL,  -- CR-1: 5000-char cap is app-level (FR-007); non-MAX NVARCHAR maxes at 4000 (error 2717)
         created_at      DATETIME2      NOT NULL,
         updated_at      DATETIME2      NOT NULL
     );

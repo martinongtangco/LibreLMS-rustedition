@@ -178,10 +178,15 @@ impl CourseRepo for TiberiusCourseRepo {
         let g = g.as_mut().ok_or(CatalogError::Unavailable)?;
         let stream = g
             .query(
-                "SELECT id, title, description, organization_id
+                "SELECT CAST(id AS NVARCHAR(40)) AS id, title, description,
+                       CAST(organization_id AS NVARCHAR(40)) AS organization_id
                  FROM dbo.courses
-                 WHERE organization_id = @P1
-                   AND (@P2 IS NULL OR title LIKE '%' + @P2 + '%')",
+                 WHERE organization_id = CAST(@P1 AS UNIQUEIDENTIFIER)
+                   AND (@P2 IS NULL
+                        OR title LIKE N'%'
+                             + REPLACE(REPLACE(REPLACE(@P2, N'[', N'[]'), N'%', N'[%]'), N'_', N'[_]')
+                             + N'%' ESCAPE N'[')
+                 ",
                 &[&org, &title_filter.map(str::to_string)],
             )
             .await
@@ -216,8 +221,9 @@ impl CourseRepo for TiberiusCourseRepo {
         let g = g.as_mut().ok_or(CatalogError::Unavailable)?;
         let row = g
             .query(
-                "SELECT TOP 1 id, title, description, organization_id
-                 FROM dbo.courses WHERE id = @P1",
+                "SELECT TOP 1 CAST(id AS NVARCHAR(40)) AS id, title, description,
+                           CAST(organization_id AS NVARCHAR(40)) AS organization_id
+                 FROM dbo.courses WHERE id = CAST(@P1 AS UNIQUEIDENTIFIER)",
                 &[&course_id],
             )
             .await
@@ -264,8 +270,9 @@ impl CourseRepo for TiberiusCourseRepo {
             .query(
                 "DECLARE @id NVARCHAR(40) = CAST(NEWID() AS NVARCHAR(40));
                  INSERT INTO dbo.courses (id, organization_id, title, description, created_at, updated_at)
-                 OUTPUT inserted.id
-                 VALUES (@P1, @P2, @P3, @P4, CAST(@P5 AS DATETIME2), CAST(@P5 AS DATETIME2))",
+                 OUTPUT CAST(inserted.id AS NVARCHAR(40))
+                 VALUES (CAST(@id AS UNIQUEIDENTIFIER), CAST(@P1 AS UNIQUEIDENTIFIER),
+                         @P2, @P3, CAST(@P4 AS DATETIME2), CAST(@P4 AS DATETIME2))",
                 &[&session_org, &title, &description, &now_sql, &now_sql],
             )
             .await
@@ -309,7 +316,8 @@ impl CourseRepo for TiberiusCourseRepo {
                  SET title = COALESCE(@P1, title),
                      description = COALESCE(@P2, description),
                      updated_at = CAST(@P3 AS DATETIME2)
-                 WHERE id = @P4 AND organization_id = @P5",
+                 WHERE id = CAST(@P4 AS UNIQUEIDENTIFIER)
+                   AND organization_id = CAST(@P5 AS UNIQUEIDENTIFIER)",
                 &[&title, &description, &now_sql, &course_id, &session_org],
             )
             .await
@@ -326,7 +334,9 @@ impl CourseRepo for TiberiusCourseRepo {
         let g = g.as_mut().ok_or(CatalogError::Unavailable)?;
         let affected = g
             .execute(
-                "DELETE FROM dbo.courses WHERE id = @P1 AND organization_id = @P2",
+                "DELETE FROM dbo.courses
+                 WHERE id = CAST(@P1 AS UNIQUEIDENTIFIER)
+                   AND organization_id = CAST(@P2 AS UNIQUEIDENTIFIER)",
                 &[&course_id, &session_org],
             )
             .await
@@ -347,7 +357,7 @@ impl TiberiusCourseRepo {
         }
         let n: i32 = g
             .as_mut()
-            .unwrap()
+            .ok_or(CatalogError::Unavailable)?
             .query("SELECT 1", &[])
             .await
             .map_err(|_| CatalogError::Unavailable)?
