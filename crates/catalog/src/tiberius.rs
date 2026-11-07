@@ -137,7 +137,10 @@ async fn fetch(
     let g = g.as_mut().ok_or(CatalogError::Unavailable)?;
     let row = g
         .query(
-            "SELECT TOP 1 id, title, description, organization_id, created_at, updated_at
+            // CR-8: SELECT only the columns this read uses — tiberius's
+            // into_row() materializes EVERY selected column, and the
+            // DATETIME2 timestamps would fail &str interpretation.
+            "SELECT TOP 1 id, title, description, organization_id
              FROM dbo.courses WHERE id = @P1",
             &[&id],
         )
@@ -153,8 +156,6 @@ async fn fetch(
     let title: Option<&str> = row.get(1);
     let desc: Option<&str> = row.get(2);
     let org_id: Option<&str> = row.get(3);
-    let _created: Option<&str> = row.get(4);
-    let _updated: Option<&str> = row.get(5);
     let org_id = org_id.unwrap_or("");
     if org_id != org {
         // Exists but foreign → Scope (403), not NotFound (no oracle).
