@@ -88,8 +88,8 @@ pub struct TiberiusEnrollmentRepo {
 
 impl TiberiusEnrollmentRepo {
     pub async fn connect(url: &str) -> Result<Self, EnrollmentError> {
-        let (user, port, host, db, pass, encrypt) = parse_database_url(url)
-            .map_err(|e| EnrollmentError::Validation {
+        let (user, port, host, db, pass, encrypt) =
+            parse_database_url(url).map_err(|e| EnrollmentError::Validation {
                 field: "DATABASE_URL",
                 message: e,
             })?;

@@ -74,7 +74,10 @@ async fn complete_transitions_first_wins() {
     let e = repo.create(USER_A, "c1", ORG_A).await.expect("create");
     let done = repo.complete(USER_A, &e.id, ORG_A).await.expect("complete");
     assert_eq!(done.status, Status::Completed, "transition");
-    assert!(done.completed_at.is_some(), "completion record with timestamp");
+    assert!(
+        done.completed_at.is_some(),
+        "completion record with timestamp"
+    );
     let first_ts = done.completed_at.expect("ts");
     // Second completion → rejected, original record unchanged (US3.2).
     let again = repo.complete(USER_A, &e.id, ORG_A).await;
@@ -83,7 +86,11 @@ async fn complete_transitions_first_wins() {
         "double completion → AlreadyCompleted, got {again:?}"
     );
     let after = repo.list_for_learner(USER_A, ORG_A).await.expect("list");
-    assert_eq!(after[0].completed_at, Some(first_ts), "original timestamp preserved");
+    assert_eq!(
+        after[0].completed_at,
+        Some(first_ts),
+        "original timestamp preserved"
+    );
     // Exactly one completion exists per enrollment (the PK's double analog).
     let org = repo.list_for_org(ORG_A).await.expect("org");
     assert_eq!(org.len(), 1);
@@ -101,7 +108,11 @@ async fn complete_gates_notfound_scope_forbidden() {
     let sc = repo.complete(USER_A, &e.id, ORG_B).await;
     assert!(matches!(sc, Err(EnrollmentError::Scope)), "{sc:?}");
     let still = repo.list_for_learner(USER_A, ORG_A).await.expect("list");
-    assert_eq!(still[0].status, Status::Enrolled, "nothing persisted on scope rejection");
+    assert_eq!(
+        still[0].status,
+        Status::Enrolled,
+        "nothing persisted on scope rejection"
+    );
     // Cross-learner → Forbidden (the learner's own completion only).
     let fb = repo.complete(USER_B, &e.id, ORG_A).await;
     assert!(matches!(fb, Err(EnrollmentError::Forbidden)), "{fb:?}");
@@ -125,7 +136,10 @@ async fn outage_is_unavailable_never_silent() {
     let src = InMemoryCourseSource::new();
     src.set_unavailable_for_test(true);
     assert!(
-        matches!(src.course_title("c1").await, Err(EnrollmentError::Unavailable)),
+        matches!(
+            src.course_title("c1").await,
+            Err(EnrollmentError::Unavailable)
+        ),
         "port outage → Err (N1: never Ok(None) — an outage must never be \
          conflated with absence)"
     );
@@ -148,11 +162,15 @@ async fn course_source_fixture_contract() {
     );
     assert!(src.course_exists_in_org("c1", ORG_A).await.expect("in org"));
     assert!(
-        !src.course_exists_in_org("c1", ORG_B).await.expect("out of org"),
+        !src.course_exists_in_org("c1", ORG_B)
+            .await
+            .expect("out of org"),
         "foreign org → false (403-class)"
     );
     assert!(
-        !src.course_exists_in_org("missing", ORG_A).await.expect("absent"),
+        !src.course_exists_in_org("missing", ORG_A)
+            .await
+            .expect("absent"),
         "absent → false (indistinguishable from out-of-scope — no oracle)"
     );
 }
