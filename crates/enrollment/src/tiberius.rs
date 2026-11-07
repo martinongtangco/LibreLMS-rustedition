@@ -5,8 +5,8 @@
 //!
 //! SC-003 (plan PQ-1): the engine's UNIQUE (learner_id, course_id) constraint
 //! is the final arbiter under concurrency — a unique-constraint violation
-//! (MSSQL 2627) maps to `AlreadyEnrolled`, never a 500, never a second row.
-//! The completion PK analog maps to `AlreadyCompleted`.
+//! (MSSQL 2601/2627 duplicate-key) maps to `AlreadyEnrolled`, never a 500,
+//! never a second row. The completion PK analog maps to `AlreadyCompleted`.
 
 use std::sync::Arc;
 
@@ -224,7 +224,7 @@ impl EnrollmentRepo for TiberiusEnrollmentRepo {
         // strings; CAST at the wire edge — 001 convention).
         //
         // NOTE (tiberius 0.13): the query() future resolves OK even when the
-        // server rejects the batch — a 2627 unique-violation surfaces when the
+        // server rejects the batch — a 2601/2627 unique-violation surfaces when the
         // stream is consumed (into_row). Both legs must map it.
         let stream = g
             .query(

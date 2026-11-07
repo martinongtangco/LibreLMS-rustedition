@@ -98,7 +98,7 @@ async fn real_engine_full_battery() {
     for h in handles {
         results.push(h.await.expect("race join"));
     }
-    let wins = results.iter().filter(|r| matches!(r, Ok(_))).count();
+    let wins = results.iter().filter(|r| r.is_ok()).count();
     let losses = results
         .iter()
         .filter(|r| matches!(r, Err(EnrollmentError::AlreadyEnrolled)))
@@ -106,7 +106,7 @@ async fn real_engine_full_battery() {
     assert_eq!(wins, 1, "exactly one winner; results: {results:?}");
     assert_eq!(
         losses, 7,
-        "the losers ALL got the stable code (2627 mapping fired — never a \
+        "the losers ALL got the stable code (2601/2627 mapping fired — never a \
          500, never a second row): {results:?}"
     );
     let listed = repo
