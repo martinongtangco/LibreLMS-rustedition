@@ -5,9 +5,7 @@
 //! silent empty list (FR-011).
 
 use contracts::Role;
-use management::repo::{
-    InMemoryManagementRepo, ManagementError, ManagementRepo, parse_role,
-};
+use management::repo::{parse_role, InMemoryManagementRepo, ManagementError, ManagementRepo};
 
 async fn create(
     repo: &InMemoryManagementRepo,
@@ -35,7 +33,7 @@ async fn email_boundary_320_ok_321_rejected_naming_the_field() {
     assert!(
         matches!(
             d,
-            Err(ManagementError::Validation { ref field, .. }) if &**field == "email"
+            Err(ManagementError::Validation { field, .. }) if field == "email"
         ),
         "321-char email → Validation{{field: email}}, got {d:?}"
     );
@@ -48,7 +46,7 @@ async fn empty_email_rejected_naming_the_field() {
     assert!(
         matches!(
             d,
-            Err(ManagementError::Validation { ref field, .. }) if &**field == "email"
+            Err(ManagementError::Validation { field, .. }) if field == "email"
         ),
         "empty email → Validation{{field: email}}, got {d:?}"
     );
@@ -64,7 +62,7 @@ async fn name_boundary_200_ok_201_rejected_naming_the_field() {
     assert!(
         matches!(
             d,
-            Err(ManagementError::Validation { ref field, .. }) if &**field == "name"
+            Err(ManagementError::Validation { field, .. }) if field == "name"
         ),
         "201-char name → Validation{{field: name}}, got {d:?}"
     );
@@ -77,7 +75,7 @@ async fn empty_name_rejected_naming_the_field() {
     assert!(
         matches!(
             d,
-            Err(ManagementError::Validation { ref field, .. }) if &**field == "name"
+            Err(ManagementError::Validation { field, .. }) if field == "name"
         ),
         "empty name → Validation{{field: name}}, got {d:?}"
     );
@@ -93,7 +91,7 @@ async fn org_name_boundary_200_ok_201_rejected_naming_the_field() {
     assert!(
         matches!(
             d,
-            Err(ManagementError::Validation { ref field, .. }) if &**field == "name"
+            Err(ManagementError::Validation { field, .. }) if field == "name"
         ),
         "201-char org name → Validation{{field: name}}, got {d:?}"
     );
@@ -106,7 +104,7 @@ async fn org_name_empty_rejected_naming_the_field() {
     assert!(
         matches!(
             d,
-            Err(ManagementError::Validation { ref field, .. }) if &**field == "name"
+            Err(ManagementError::Validation { field, .. }) if field == "name"
         ),
         "empty org name → Validation{{field: name}}, got {d:?}"
     );
@@ -148,7 +146,10 @@ async fn injection_shaped_email_stored_and_compared_as_plain_text() {
     // The duplicate check is on the PLAIN-TEXT equality: the same string is
     // the same user (idempotent upsert), never a SQL injection.
     let again = create(&repo, evil, "Robert").await.expect("idempotent");
-    assert_eq!(again.user.id, u.user.id, "same plain-text email → same user");
+    assert_eq!(
+        again.user.id, u.user.id,
+        "same plain-text email → same user"
+    );
 }
 
 #[tokio::test]
@@ -187,7 +188,9 @@ async fn fault_injection_is_unavailable_never_silent_empty() {
         matches!(orgs, Err(ManagementError::Unavailable)),
         "outage → Unavailable (never a silent empty list), got {orgs:?}"
     );
-    let d = repo.create_user("org-f", "g@e.com", "G", &Role::Member).await;
+    let d = repo
+        .create_user("org-f", "g@e.com", "G", &Role::Member)
+        .await;
     assert!(
         matches!(d, Err(ManagementError::Unavailable)),
         "outage → Unavailable (never a silent write), got {d:?}"
