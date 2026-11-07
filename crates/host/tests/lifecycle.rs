@@ -87,6 +87,9 @@ async fn startup_with_valid_config_reports_ok_health() {
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
             enrollment_repo,
             course_source,
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
             Some(stop2),
         )
         .await
@@ -126,6 +129,9 @@ async fn degraded_when_session_store_down() {
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
             enrollment_repo,
             course_source,
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
             Some(stop2),
         )
         .await
@@ -159,6 +165,9 @@ async fn port_in_use_fails_fast_naming_the_port() {
         std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
         enrollment_repo,
         course_source,
+        Arc::new(scorm::memory::InMemoryScormRepo::new()),
+        Arc::new(scorm::memory::InMemoryBagStore::new()),
+        Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
         None,
     )
     .await;

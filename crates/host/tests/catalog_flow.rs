@@ -93,6 +93,9 @@ async fn boot_with_session(port: u16, repo: Arc<InMemoryCourseRepo>, user_id: &s
             repo,
             Arc::new(InMemoryEnrollmentRepo::new()),
             Arc::new(InMemoryCourseSource::new()),
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
             None,
         )
         .await

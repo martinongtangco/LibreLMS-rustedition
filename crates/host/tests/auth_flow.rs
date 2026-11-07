@@ -43,6 +43,9 @@ async fn missing_cookie_is_401_with_envelope() {
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
             enrollment_repo,
             course_source,
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
             None,
         )
         .await
@@ -71,6 +74,9 @@ async fn valid_cookie_in_scope_is_200_identity() {
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
             enrollment_repo,
             course_source,
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
             None,
         )
         .await
@@ -110,6 +116,9 @@ async fn valid_cookie_out_of_scope_is_403() {
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
             enrollment_repo,
             course_source,
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
             None,
         )
         .await
@@ -164,6 +173,9 @@ async fn expired_cookie_is_401_never_500() {
             std::sync::Arc::new(catalog::repo::InMemoryCourseRepo::new()),
             enrollment_repo,
             course_source,
+            Arc::new(scorm::memory::InMemoryScormRepo::new()),
+            Arc::new(scorm::memory::InMemoryBagStore::new()),
+            Arc::new(scorm::memory::DoubleEnrollmentPort::new()),
             None,
         )
         .await
