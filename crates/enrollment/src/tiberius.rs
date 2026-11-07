@@ -61,11 +61,12 @@ fn parse_database_url(url: &str) -> Result<(String, u16, String, String, String,
     Ok((user.to_string(), port, host, db, pass.to_string(), encrypt))
 }
 
-/// The unique-constraint violation (MSSQL 2627) is the SC-003 engine anchor:
-/// it maps to the given stable code, never a 500, never a silent second
-/// row. Every other server error is an outage (503).
+/// The unique-constraint violation (MSSQL duplicate-key: 2601 general /
+/// 2627 with index name — both observed on real 2022) is the SC-003 engine
+/// anchor: it maps to the given stable code, never a 500, never a silent
+/// second row. Every other server error is an outage (503).
 fn map_unique(e: tiberius::error::Error, unique: EnrollmentError) -> EnrollmentError {
-    if e.code() == Some(2627) {
+    if matches!(e.code(), Some(2601) | Some(2627)) {
         unique
     } else {
         EnrollmentError::Unavailable
@@ -151,9 +152,11 @@ impl TiberiusEnrollmentRepo {
     }
 
     /// Row read: (id, learner_id, course_id, organization_id, status,
-    /// created_at, completed_at?) — `learner_id` is a UNIQUEIDENTIFIER column
-    /// read via `&str` (the wire-edge convention — the full-env battery
-    /// proves this path on the real engine).
+    /// created_at, completed_at?). `learner_id` is a UNIQUEIDENTIFIER column
+    /// read as `&str` via a CAST at the SELECT wire edge — tiberius 0.13
+    /// cannot interpret a Guid column as a String value (proven on the real
+    /// engine by the full-env battery; the 003 slice's fetch has the same
+    /// latent gap, CR for PR #2).
     fn parse_row(row: &tiberius::Row) -> Option<Enrollment> {
         let id: Option<&str> = row.get(0);
         let learner: Option<&str> = row.get(1);
@@ -219,7 +222,11 @@ impl EnrollmentRepo for TiberiusEnrollmentRepo {
         let g = g.as_mut().ok_or(EnrollmentError::Unavailable)?;
         // One round-trip: NEWID() id returned via OUTPUT (contract ids are
         // strings; CAST at the wire edge — 001 convention).
-        let row = g
+        //
+        // NOTE (tiberius 0.13): the query() future resolves OK even when the
+        // server rejects the batch — a 2627 unique-violation surfaces when the
+        // stream is consumed (into_row). Both legs must map it.
+        let stream = g
             .query(
                 "DECLARE @id NVARCHAR(40) = CAST(NEWID() AS NVARCHAR(40));
                  INSERT INTO dbo.enrollments (id, learner_id, course_id, organization_id, status, created_at)
@@ -228,10 +235,11 @@ impl EnrollmentRepo for TiberiusEnrollmentRepo {
                 &[&learner as &dyn ToSql, &course as &dyn ToSql, &org as &dyn ToSql, &now_sql as &dyn ToSql],
             )
             .await
-            .map_err(|e| map_unique(e, EnrollmentError::AlreadyEnrolled))?
+            .map_err(|e| map_unique(e, EnrollmentError::AlreadyEnrolled))?;
+        let row = stream
             .into_row()
             .await
-            .map_err(|_| EnrollmentError::Unavailable)?;
+            .map_err(|e| map_unique(e, EnrollmentError::AlreadyEnrolled))?;
         let Some(row) = row else {
             return Err(EnrollmentError::Unavailable);
         };
@@ -257,7 +265,7 @@ impl EnrollmentRepo for TiberiusEnrollmentRepo {
         organization_id: &str,
     ) -> Result<Vec<Enrollment>, EnrollmentError> {
         self.query_rows(
-            "SELECT e.id, e.learner_id, e.course_id, e.organization_id, e.status, e.created_at, c.completed_at
+            "SELECT e.id, CAST(e.learner_id AS NVARCHAR(40)), e.course_id, e.organization_id, e.status, e.created_at, c.completed_at
              FROM dbo.enrollments e
              LEFT JOIN dbo.completions c ON c.enrollment_id = e.id
              WHERE e.learner_id = CAST(@P1 AS UNIQUEIDENTIFIER)
@@ -273,7 +281,7 @@ impl EnrollmentRepo for TiberiusEnrollmentRepo {
         organization_id: &str,
     ) -> Result<Vec<Enrollment>, EnrollmentError> {
         self.query_rows(
-            "SELECT e.id, e.learner_id, e.course_id, e.organization_id, e.status, e.created_at, c.completed_at
+            "SELECT e.id, CAST(e.learner_id AS NVARCHAR(40)), e.course_id, e.organization_id, e.status, e.created_at, c.completed_at
              FROM dbo.enrollments e
              LEFT JOIN dbo.completions c ON c.enrollment_id = e.id
              WHERE e.organization_id = @P1
@@ -296,7 +304,7 @@ impl EnrollmentRepo for TiberiusEnrollmentRepo {
         let eid = enrollment_id.to_string();
         let row = g
             .query(
-                "SELECT TOP 1 e.id, e.learner_id, e.course_id, e.organization_id, e.status, e.created_at, c.completed_at
+                "SELECT TOP 1 e.id, CAST(e.learner_id AS NVARCHAR(40)), e.course_id, e.organization_id, e.status, e.created_at, c.completed_at
                  FROM dbo.enrollments e
                  LEFT JOIN dbo.completions c ON c.enrollment_id = e.id
                  WHERE e.id = @P1",
@@ -317,9 +325,12 @@ impl EnrollmentRepo for TiberiusEnrollmentRepo {
             // Exists but foreign → Scope (403), not NotFound (no oracle).
             return Err(EnrollmentError::Scope);
         }
-        // Only the enrolled learner records their own completion.
+        // Only the enrolled learner records their own completion. The engine
+        // normalizes UNIQUEIDENTIFIER casing (CAST read-back is uppercase),
+        // so the comparison is case-insensitive (a no-op for the memory
+        // double's session-source strings).
         let learner: Option<&str> = row.get(1);
-        if learner.unwrap_or_default() != actor_id {
+        if !learner.unwrap_or_default().eq_ignore_ascii_case(actor_id) {
             return Err(EnrollmentError::Forbidden);
         }
         // Status gate (2-state design: only 'enrolled'/'completed' are
