@@ -70,8 +70,12 @@ migration batches (N/A — no DDL); no secrets in logs (001 FR-009).
 | VII | Spec-Driven, Sliced Thin | ✅ PASS | spec 006 on `main` (CRs folded, 5c53ddf) before planning; thin vertical slice (learners → orgs → robustness) |
 | VIII | Branching Discipline | ✅ PASS | implementation on `story/006-management` |
 | IX | Plan On Main Only | ✅ PASS | this plan authored on `main` |
+| X | No Ad-Hoc Fixes — Document Before You Code | ✅ N/A | new slice, not a fix; all decisions documented here first |
 | XI | Two-Machine Parallelism | ✅ PASS | host mount via the documented one-line-mount + rebase convention (docs 767d690) |
+| XII | Return To Main After Implementation | ✅ PASS | `story/006-management` → PR → `main` (the slice ends merged or abandoned, never parked) |
 | XIII | Verification Before Claim | ✅ PASS | red-first tasks; the real-engine proof is a real run on the reviewing machine (never a self-skip) |
+| XIV | Bounded Retry — Every Loop Has a Ceiling | ✅ PASS | doloop iteration ceiling (state file per slice) |
+| XV | Triage Before Retry | ✅ PASS | each failed cycle is triaged (diagnosis before re-run) per the doloop protocol |
 | XVI | Cross-Agent Review for Merge (NON-NEGOTIABLE) | ✅ PASS | Agent B reviews spec (done — 5c53ddf)/plan/tasks, then the PR; the full-env gate run is the reviewing machine's |
 | XVII | Verify Against a Disposable Environment | ✅ PASS | tests create their own rows; the gated full-env test self-skips visibly, the deciding run is real |
 | XVIII | Rust Hygiene | ✅ PASS | `rust-toolchain.toml` pin, clippy `-D warnings`, fmt, no `unwrap`/`expect` outside tests |
