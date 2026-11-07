@@ -12,7 +12,7 @@ port must decide: one binary with module crates, or separate services?
 
 One binary (`crates/host`, axum) composed of independent module crates
 (`catalog`, `enrollment`, `scorm`, `management`), a `contracts` crate for shared
-DTOs/interfaces, and a `shared` crate for infrastructure (sqlx MSSQL pool, Valkey
+DTOs/interfaces, and a `shared` crate for infrastructure (tiberius MSSQL pool, Valkey
 client, mail, auth core). Modules never depend on each other's internals; `host` wires
 them together. The `contracts` crate is the rehearsal for a future network boundary if a
 module ever splits out.

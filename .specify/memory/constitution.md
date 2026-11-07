@@ -38,9 +38,11 @@ day one, even though it isn't a network seam yet.
 ### II. Clean Architecture, Applied Simply
 Inside each module crate, dependencies point inward: `domain` knows nothing about
 `application`, `application` knows nothing about `infrastructure`. That's the whole rule.
-Do not add an ORM abstraction layer, an event bus, or a repository pattern wrapping sqlx
-unless a specific, current problem requires it — sqlx already *is* the data-access
-abstraction; wrapping it again just adds a layer a human has to read through for no
+Do not add an ORM abstraction layer, an event bus, or a repository pattern wrapping the
+data client (tiberius)
+unless a specific, current problem requires it — the data client already *is* the
+data-access abstraction; wrapping it again just adds a layer a human has to read
+through for no
 behavioral gain. Every abstraction that *does* get introduced must be explainable in one
 plain sentence to someone who knows Rust but not this codebase. If it can't be, simplify it.
 
@@ -84,7 +86,7 @@ Windows). The protocol:
 
 ### VI. Polyglot Storage With a Reason, Not by Default
 MSSQL is the system of record for everything durable — users, courses, enrollments, final
-completion status — accessed via **sqlx (mssql)**. The Redis-protocol store (**Valkey**,
+completion status — accessed via **tiberius** (dedicated TDS client). The Redis-protocol store (**Valkey**,
 via `redis-rs`) is used *only* for ephemeral, high-churn state that doesn't need relational
 guarantees: specifically, the live SCORM `cmi.*` runtime bag during an in-progress attempt,
 written on every `LMSSetValue` call and persisted to MSSQL on `LMSCommit`/`LMSFinish`.
@@ -247,8 +249,8 @@ for that run — never long-lived development data.
   this is a learning project; a stable toolchain removes one variable from an
   already-experimental exercise.
 - **axum** for HTTP (routing, middleware, extraction) with `tower`/`tower-http`.
-- **sqlx with the MSSQL driver** for the system of record. (SeaORM is not an option — it
-  does not support MSSQL. This decision is recorded in `docs/adr/0002`.)
+- **tiberius** (dedicated TDS client, tokio) for the system of record — sqlx 0.8 has no
+  MSSQL support and SeaORM does not either. See `docs/adr/0002` and `docs/adr/0003`.
 - **redis-rs** client against a **Valkey** server (Redis-protocol-compatible) for the
   ephemeral SCORM session bag.
 - **askama** for server-rendered templates (the Razor Pages replacement), chosen for
@@ -287,4 +289,4 @@ amendment reverses a prior ADR — recording that reversal as a new ADR rather t
 the old one. Both agents must acknowledge an amendment via a PR before it is considered in
 force for in-flight slices.
 
-**Version**: 1.0.0 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-07-22
+**Version**: 1.0.1 | **Ratified**: 2026-07-22 | **Last Amended**: 2026-07-22 (amendment: tiberius for MSSQL, ADR 0003 — peer acknowledgment pending via PR)

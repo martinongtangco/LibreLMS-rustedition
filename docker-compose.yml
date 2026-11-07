@@ -1,0 +1,25 @@
+# Full-environment services (quickstart §3). The deterministic test path does NOT
+# need these (Principle XIII/XVII: MemoryStorage + MemorySessionStore).
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $MSSQL_SA_PASSWORD -Q 'SELECT 1' -b -o /dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  valkey:
+    image: valkey/valkey:8
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 6

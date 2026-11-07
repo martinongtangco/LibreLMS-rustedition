@@ -19,7 +19,7 @@ repository = "https://github.com/martinongtangco/LibreLMS-rustedition"
 axum = "0.8"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace"] }
-sqlx = { version = "0.8", features = ["mssql", "runtime-tokio"] }
+tiberius = { version = "0.13", features = ["tokio"] }
 redis = { version = "0.27", features = ["tokio-comp"] }
 askama = "0.12"
 cookie = "0.18"

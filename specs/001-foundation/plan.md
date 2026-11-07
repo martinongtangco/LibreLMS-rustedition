@@ -7,11 +7,11 @@
 ## Summary
 
 The foundation slice delivers the application lifecycle (config → startup → health →
-shutdown), the system-of-record access (sqlx against MSSQL), the ephemeral session store
+shutdown), the system-of-record access (tiberius against MSSQL — ADR 0003), the ephemeral session store
 (redis-rs against Valkey), the auth mechanism (cookie sessions with organization scope),
 the shared contract crate, the boundary check, and the full CI gate set. Technical
 approach: an axum host crate composing a `shared` infrastructure crate (storage traits +
-sqlx/in-memory implementations, session store, mail, auth) and a `contracts` crate
+tiberius/in-memory implementations, session store, mail, auth) and a `contracts` crate
 (typed shapes). No module business logic.
 
 ## Technical Context
@@ -19,10 +19,10 @@ sqlx/in-memory implementations, session store, mail, auth) and a `contracts` cra
 **Language/Version**: Rust 1.99.1 stable, pinned via `rust-toolchain.toml` (Principle XVIII)
 
 **Primary Dependencies** (all already declared in the workspace `Cargo.toml`):
-`axum` 0.8, `tower`/`tower-http`, `sqlx` 0.8 (mssql feature), `redis` 0.27 (tokio-comp),
+`axum` 0.8, `tower`/`tower-http`, `tiberius` 0.13 (tokio feature — ADR 0003), `redis` 0.27 (tokio-comp),
 `askama` 0.12, `cookie` 0.18, `tokio`, `serde`/`serde_json`, `tracing`/`tracing-subscriber`
 
-**Storage**: MSSQL (system of record, via sqlx — ADR 0002); Valkey (Redis-protocol, via
+**Storage**: MSSQL (system of record, via tiberius — ADR 0002/0003); Valkey (Redis-protocol, via
 redis-rs) for ephemeral per-session state only (Principle VI); in-memory implementation
 behind the storage trait for deterministic local/CI tests (Principle XIII/XVII)
 
@@ -93,7 +93,7 @@ crates/
 │       ├── config.rs     # env config parsing + fail-fast validation (FR-001)
 │       ├── storage/
 │       │   ├── mod.rs    # Storage trait (async) + SessionStore trait
-│       │   ├── mssql.rs # sqlx MSSQL implementation + startup migration runner
+│       │   ├── mssql.rs # tiberius MSSQL implementation + startup migration runner
 │       │   └── memory.rs # in-memory implementation (deterministic tests)
 │       ├── session/
 │       │   └── mod.rs    # Valkey session store (ephemeral, TTL, FR-008)

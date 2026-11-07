@@ -17,13 +17,13 @@ are structured the way they are. The short version and the reasoning are in `doc
 
 - **Modular monolith**: one binary (`crates/host`, axum) composed of independent module
   crates (`catalog`, `enrollment`, `scorm`, `management`) plus a `contracts` crate
-  (shared DTOs/interfaces) and a `shared` crate (sqlx MSSQL pool, Valkey client, mail,
+  (shared DTOs/interfaces) and a `shared` crate (tiberius MSSQL pool, Valkey client, mail,
   auth core).
 - **Clean Architecture inside each module** (domain → application → infrastructure),
   deliberately free of ORM/mediator frameworks.
 - **Boundaries are compiled, not conventional**: CI fails on module-boundary violations
   (Principle III).
-- **Storage**: MSSQL (via sqlx) is the system of record; Valkey holds only the live
+- **Storage**: MSSQL (via tiberius) is the system of record; Valkey holds only the live
   SCORM session bag for an in-progress attempt.
 
 ## The work split

@@ -3,12 +3,15 @@
 Resolves the unknowns from the plan's Technical Context. No open NEEDS CLARIFICATION
 markers — all findings below are decisions or documented risks.
 
-## R1. sqlx migrations with MSSQL
+## R1. Migrations with MSSQL
 
-**Unknown**: does sqlx's built-in migrator support MSSQL?
+**Unknown**: what migration mechanism works against MSSQL?
 
-**Finding**: No — `sqlx migrate` supports PostgreSQL, MySQL, and SQLite only. MSSQL has
-no first-class migrator in sqlx 0.8.
+**Finding**: No first-class migrator exists for MSSQL in any Rust data client —
+sqlx 0.8 removed MSSQL entirely (ADR 0003), diesel-async doesn't expose it.
+**Correction (2026-07-22, doloop cycle 1)**: the plan's premise "sqlx with the
+MSSQL driver" was false; the client is now tiberius (ADR 0003). The migration
+mechanism below is client-agnostic and stands.
 
 **Decision**: a small startup migration runner in `shared::migrate`: ordered `.sql`
 scripts from `migrations/`, applied at startup inside a transaction where the engine
@@ -25,9 +28,9 @@ must be written to complete atomically; migration scripts are reviewed like code
 **Unknown**: how to run the same tests without MSSQL (this machine has no docker).
 
 **Decision**: `shared::storage::Storage` is an async trait with two implementations:
-`MssqlStorage` (sqlx) and `MemoryStorage` (in-process, `Arc<Mutex<...>>`). Tests and
+`TiberiusStorage` (tiberius) and `MemoryStorage` (in-process, `Arc<Mutex<...>>`). Tests and
 the deterministic doloop check use `MemoryStorage`; the full-environment suite
-(`tests/`, gated on `DATABASE_URL` presence) uses `MssqlStorage`. Contract tests assert
+(`tests/`, gated on `DATABASE_URL` presence) uses `TiberiusStorage`. Contract tests assert
 on the trait, so both implementations are proven. This is the Principle XIII/XVII
 substitute; the full-environment run happens on the peer machine (docker available) or
 CI.
@@ -70,8 +73,8 @@ layers).
 ## R6. Dependency versions
 
 **Finding**: versions are already pinned in the workspace `Cargo.toml`
-(axum 0.8, sqlx 0.8 mssql, redis 0.27 tokio-comp, askama 0.12, cookie 0.18, tokio 1,
-serde 1). No new dependency is added by this plan — if one becomes necessary during
+(axum 0.8, tiberius 0.13 tokio, redis 0.27 tokio-comp, askama 0.12, cookie 0.18,
+tokio 1, serde 1 — tiberius replaces sqlx per ADR 0003). No further dependency is added by this plan — if one becomes necessary during
 implementation it gets a plan/ADR entry first (Principle XVIII).
 
 ## R7. Graceful shutdown
