@@ -61,6 +61,15 @@ async fn management_full_env_battery() {
             .map(|(n, sql)| (*n, *sql)),
     );
     manifest.extend(MANAGEMENT_MIGRATIONS.iter().map(|(n, sql)| (*n, *sql)));
+    // NOTE (006 CR-1, non-blocking, folded post-merge): the strict
+    // `len == 5` assertion is first-touch order-sensitive in a SHARED-CYCLE
+    // run (a runner that already applied part of the manifest observes a
+    // smaller `applied` set — the 2026-11-07 review observed [0003, 0006]
+    // at 0.11s, a runner artifact, not a product bug). The intended /
+    // deciding configuration is the STANDALONE fresh-container run
+    // (pre-state DB absent), where exactly the five non-empty scripts
+    // apply. The order-invariant variant lands with the Phase 4
+    // shared-container runner.
     let applied = storage
         .run_migrations(&manifest)
         .await
