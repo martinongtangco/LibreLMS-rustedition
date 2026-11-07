@@ -126,8 +126,9 @@ impl TiberiusCourseRepo {
 }
 
 /// The scope/404-oracle rule (spec 003 story 3.2) implemented against the real
-/// engine: `WHERE id = @id AND organization_id = @org` yields zero rows for
-/// both absent and foreign — the discriminator is a second existence check.
+/// engine: the row is fetched BY ID ONLY (no org predicate — a predicate
+/// would leak existence as 404-vs-403); the scope check is the post-fetch
+/// org comparison (absent row → NotFound, foreign org → Scope).
 async fn fetch(
     g: &mut tokio::sync::MutexGuard<'_, Option<Client<tokio_util::compat::Compat<TcpStream>>>>,
     id: &str,
@@ -178,10 +179,9 @@ impl CourseRepo for TiberiusCourseRepo {
         let g = g.as_mut().ok_or(CatalogError::Unavailable)?;
         let stream = g
             .query(
-                "SELECT CAST(id AS NVARCHAR(40)) AS id, title, description,
-                       CAST(organization_id AS NVARCHAR(40)) AS organization_id
+                "SELECT id, title, description, organization_id
                  FROM dbo.courses
-                 WHERE organization_id = CAST(@P1 AS UNIQUEIDENTIFIER)
+                 WHERE organization_id = @P1
                    AND (@P2 IS NULL
                         OR title LIKE N'%'
                              + REPLACE(REPLACE(REPLACE(@P2, N'[', N'[]'), N'%', N'[%]'), N'_', N'[_]')
