@@ -233,6 +233,9 @@ async fn duplicate_enroll_is_409_single_row() {
 async fn outage_is_503_never_500_never_silent() {
     let repo = Arc::new(InMemoryEnrollmentRepo::new());
     let source = Arc::new(InMemoryCourseSource::new());
+    // The course must exist (and be in-scope) so the port checks pass and
+    // the failure is the REPO outage, not a 404.
+    seed_course(&source, "c1", ORG, "Rust for LMS").await;
     let token = boot(17606, repo.clone(), source, "dev-user").await;
     repo.set_unavailable_for_test(true);
     let (code, body) = call(
@@ -244,7 +247,8 @@ async fn outage_is_503_never_500_never_silent() {
     )
     .await
     .expect("connected");
-    assert_eq!(code, 503, "outage → 503: {body}");
+    assert_eq!(code, 503, "create outage → 503: {body}");
+    assert!(body.contains("storage-unavailable"), "code: {body}");
     let (code, body) = call(17606, "GET", "/enrollments", None, Some(&token))
         .await
         .expect("connected");
