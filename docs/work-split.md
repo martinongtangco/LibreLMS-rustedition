@@ -69,8 +69,8 @@ ownership. Amended only via PR.
   Design NOTE on record (peer review): the finish ordering
   (finalize → record_completion) is intentional — do NOT re-order in
   Phase 4; the outage case self-heals via session scoping.
-- **Agent A — Management (spec 006): doloop complete (15/15), PR #5
-  opened** (2026-11-07). 15 tasks red-first; 149/149 deterministic on the
+- **Agent A — Management (spec 006): MERGED** as `13054e1 Spec 006:
+  Organization & Learner Management (#5)` (2026-11-07; doloop 15/15, PR #5). 15 tasks red-first; 149/149 deterministic on the
   branch (clippy -D, fmt, boundary clean). Design decisions on record:
   identity-upsert (same (email,name) idempotent join, name-conflict 409,
   the engine's UNIQUE as concurrency arbiter — NOTE-2 refined at `b718440`:
@@ -81,11 +81,19 @@ ownership. Amended only via PR.
   409-not-empty proof targets the session's org (FR-005: a created org
   can only be filled by its own admin); empty manifest by construction
   (FR-013); sessions-before-org-row delete cascade. Deciding evidence
-  pending: fresh-container full-env run on the exact pushed commit —
-  (a) N=8 independent-connection duplicate-email race, (b) 5-script
-  manifest idempotency + empty-mgmt no-op, (c) session cascade, (d)
-  never-500 stable codes, (e) durability across reconnect. **Phase 4
-  (Agent B, ONE PR after 006 merges):** both cross-slice adapters (004
+  PASSED on the reviewing machine (fresh containers, pre-state DB
+  absent, standalone full-env: real 0.72s, exactly the 5 non-empty
+  scripts, 2nd-run no-op, (a)-(e) engine-proven incl. physical
+  session-row cascade deletion; independent post-state: exactly 5
+  schema_migrations rows). CR-1 (non-blocking: the (b) `len==5`
+  first-touch order-sensitivity in a shared-cycle run) folded
+  post-merge as a doc note — the order-invariant variant lands with
+  the Phase 4 shared-container runner. Observation on record (not a
+  CR): the create_user step-2 batch is non-atomic (theoretical
+  orphan-user window; the fresh NEWID cannot collide the membership
+  PK, the org FK is guaranteed by the Authed contract) — noted for
+  the case a future slice makes the org id caller-supplied.
+  **Phase 4 (Agent B, ONE PR after 006 merges):** both cross-slice adapters (004
   CourseSource ← 003 catalog with the 404/403 decision procedure; 005
   EnrollmentPort ← 004 repo with idempotent first-wins record_completion)
   + the cross-slice E2E (enroll via 004 → scorm launch → finish passed →
