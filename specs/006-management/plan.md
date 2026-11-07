@@ -96,7 +96,7 @@ migration batches (N/A — no DDL); no secrets in logs (001 FR-009).
    delete's consequence, not its blocker).
 3. **Re-role / remove semantics**: re-role is an upsert on
    `dbo.user_organizations`; remove deletes ONLY the membership row (the
-   user row survives — multi-org users, FR-004).
+   user row survives — multi-org users, FR-004). NOTE-2 (explicit): the upsert's INSERT leg — if a concurrent create_user already inserted the membership, the INSERT hits the (user_id, org) PK (2601/2627); that violation maps to IDEMPOTENT SUCCESS (the UPDATE leg already owns the value — no 409, no 500, the role lands either way).
 4. **Duplicate email**: the engine's UNIQUE constraint is the final
    arbiter under concurrency; the deterministic duplicate test is
    LOGIC-LAYER; the real-engine proof (gated full-env) fires N concurrent

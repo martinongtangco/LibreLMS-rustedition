@@ -36,7 +36,7 @@ battery committed RED against its stub before its green.
 - **Phase 1**: T001 first; T002/T003 [P] red-first → T004 → T005 → T006
 - **Phase 2**: T007/T008 [P] red-first → T009 → T010; independent of US1 after T001
 - **Phase 3**: T011 [P] red-first → T012 → T013 → T014 → T015
-- [P] tasks: T001, T002, T003, T007, T008, T011 (distinct files)
+- [P] tasks (within-phase parallel, distinct files): T001; T002+T003 (repo.rs + flow.rs); T007+T008 (repo.rs + flow.rs); T011. Cross-phase pairs (T002/T007, T003/T008) share files but never run concurrently (sequential doloop phases).
 
 ## Compliance Notes
 
