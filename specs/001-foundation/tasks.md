@@ -20,15 +20,15 @@ observation") and are written first — red, then green.
 
 ## Phase 2: Foundational (blocks all stories)
 
-- [ ] T003 [P] Implement `shared/src/config.rs`: env parsing (`DATABASE_URL`, `VALKEY_URL`, `PORT`, `SESSION_TTL_SECS`, `SESSION_MAX_TTL_SECS`, `LOG_LEVEL`) with fail-fast validation naming the missing/malformed item (FR-001)
-- [ ] T004 [P] Define `Storage` and `SessionStore` async traits in `crates/shared/src/storage/mod.rs` and `crates/shared/src/session/mod.rs` (session rows, ephemeral bag with TTL, user/org lookups)
-- [ ] T005 [P] Implement `MemoryStorage` + `MemorySessionStore` (test doubles, `Arc<Mutex<...>>`) in `crates/shared/src/storage/memory.rs` and `crates/shared/src/session/memory.rs`
-- [ ] T006 Implement `TiberiusStorage` (tiberius pool, connection verification, session/bag queries) in `crates/shared/src/storage/mssql.rs` (depends on T004)
-- [ ] T007 Implement migration runner in `crates/shared/src/migrate/mod.rs` (ordered `migrations/*.sql`, `schema_migrations` bookkeeping, idempotent, transactional where supported — R1)
-- [ ] T008 [P] Write `migrations/0001_base.sql` (users, organizations, user_organizations, sessions, schema_migrations) + `migrations/0002_seed.sql` (dev user `dev@example.com`, dev org, admin membership — idempotent) per data-model.md
-- [ ] T009 [P] Implement `ValkeySessionStore` (redis-rs tokio-comp, `lms:session:{hash}:bag` key, TTL refresh, graceful error when unreachable) in `crates/shared/src/session/valkey.rs`
-- [ ] T010 [P] Implement `shared/src/mail/mod.rs`: `Mailer` trait + `DevOutbox` (in-process queue, drainable for the dev page — FR-010)
-- [ ] T011 Implement contract shapes in `crates/contracts/src/lib.rs` (User, Organization, Membership, Course, Enrollment, Completion, ScormAttemptStatus — serde, no other deps) per data-model.md
+- [x] T003 [P] Implement `shared/src/config.rs`: env parsing (`DATABASE_URL`, `VALKEY_URL`, `PORT`, `SESSION_TTL_SECS`, `SESSION_MAX_TTL_SECS`, `LOG_LEVEL`) with fail-fast validation naming the missing/malformed item (FR-001)
+- [x] T004 [P] Define `Storage` and `SessionStore` async traits in `crates/shared/src/storage/mod.rs` and `crates/shared/src/session/mod.rs` (session rows, ephemeral bag with TTL, user/org lookups)
+- [x] T005 [P] Implement `MemoryStorage` + `MemorySessionStore` (test doubles, `Arc<Mutex<...>>`) in `crates/shared/src/storage/memory.rs` and `crates/shared/src/session/memory.rs`
+- [x] T006 Implement `TiberiusStorage` (tiberius pool, connection verification, session/bag queries) in `crates/shared/src/storage/mssql.rs` (depends on T004)
+- [x] T007 Implement migration runner in `crates/shared/src/migrate/mod.rs` (ordered `migrations/*.sql`, `schema_migrations` bookkeeping, idempotent, transactional where supported — R1)
+- [x] T008 [P] Write `migrations/0001_base.sql` (users, organizations, user_organizations, sessions, schema_migrations) + `migrations/0002_seed.sql` (dev user `dev@example.com`, dev org, admin membership — idempotent) per data-model.md
+- [x] T009 [P] Implement `ValkeySessionStore` (redis-rs tokio-comp, `lms:session:{hash}:bag` key, TTL refresh, graceful error when unreachable) in `crates/shared/src/session/valkey.rs`
+- [x] T010 [P] Implement `shared/src/mail/mod.rs`: `Mailer` trait + `DevOutbox` (in-process queue, drainable for the dev page — FR-010)
+- [x] T011 Implement contract shapes in `crates/contracts/src/lib.rs` (User, Organization, Membership, Course, Enrollment, Completion, ScormAttemptStatus — serde, no other deps) per data-model.md
 
 **Checkpoint**: `cargo build --workspace` + `cargo clippy` green; foundation compiles, stories can begin
 
